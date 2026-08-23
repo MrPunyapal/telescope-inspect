@@ -15,10 +15,11 @@ use MrPunyapal\TelescopeInspect\Query\EntryRepository;
  *
  * Turns validated filters into an InspectionResult by combining storage
  * queries with per-type analysis. The Artisan command is a thin wrapper
- * around this class, and future integrations (MCP adapters, IDE tooling)
- * should consume this service directly instead of duplicating query logic.
- *
- * @internal
+ * around this class, and integrations (MCP adapters, IDE tooling) can call
+ * it directly: construct InspectFilters via InspectFilters::fromOptions()
+ * or the constructor, then inspect(). This class and InspectionResult are
+ * the supported public API; everything under Output/, Normalizers/, and
+ * Query/ is implementation detail.
  */
 final class TelescopeInspector
 {

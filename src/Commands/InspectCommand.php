@@ -138,12 +138,16 @@ HELP;
             return Command::FAILURE;
         }
 
-        if ($filters->search !== null && $filters->timeRange?->from === null) {
-            $this->components->warn('--search scans recent rows without a time window; add --last=... on large tables.');
-        }
+        // Machine modes emit data only; diagnostics would corrupt piped
+        // output, so they run exclusively for human rendering.
+        if (! $this->option('json') && ! $this->option('ndjson')) {
+            if ($filters->search !== null && $filters->timeRange?->from === null) {
+                $this->components->warn('--search without a time window scans recent rows; add --last=... on large tables.');
+            }
 
-        if ($filters->includeSensitiveValues && ! $this->option('json') && ! $this->option('ndjson')) {
-            $this->components->warn('Sensitive values are included in this output.');
+            if ($filters->includeSensitiveValues) {
+                $this->components->warn('Sensitive values are included in this output.');
+            }
         }
 
         $violations = IssueChecks::violations($result, $this->slowThresholdFor($result));

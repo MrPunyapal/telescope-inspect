@@ -52,6 +52,8 @@ final class EntryRepository
      */
     public function get(InspectFilters $filters): array
     {
+        $this->lastScanTruncated = false;
+
         if (! $filters->hasTypeSelection()) {
             return [];
         }
@@ -320,9 +322,15 @@ final class EntryRepository
             $content = is_array($decoded) ? $decoded : [];
         }
 
-        $createdAt = isset($attributes['created_at'])
-            ? Carbon::parse($attributes['created_at'])
-            : null;
+        $createdAt = null;
+
+        if (isset($attributes['created_at'])) {
+            try {
+                $createdAt = Carbon::parse($attributes['created_at']);
+            } catch (\Throwable) {
+                $createdAt = null; // Historical rows can carry unparseable timestamps.
+            }
+        }
 
         return new NormalizedEntry(
             uuid: (string) $attributes['uuid'],

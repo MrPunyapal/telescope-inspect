@@ -5,9 +5,9 @@
 [![CI](https://github.com/MrPunyapal/telescope-inspect/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/MrPunyapal/telescope-inspect/actions/workflows/tests.yml)
 [![License](https://img.shields.io/packagist/l/mrpunyapal/telescope-inspect.svg?style=flat-square)](https://packagist.org/packages/mrpunyapal/telescope-inspect)
 
-**Laravel Telescope inspection from the command line** — human-friendly output with first-class JSON for scripts, CI, AI agents, and tooling.
+Query Laravel Telescope data from the command line. It prints readable summaries for people and JSON for scripts, CI jobs, and other tools.
 
-Telescope records everything your app does. Answering *"which routes are slow?"*, *"what keeps failing on the queue?"* or *"is this endpoint doing an N+1?"* still means clicking through a dashboard. Telescope Inspect turns Telescope's storage into a queryable dataset you can drive from a terminal:
+Telescope records a lot. Answering questions like "which routes were slow this hour" or "what keeps failing on the queue" usually means clicking through the dashboard or writing SQL against `telescope_entries`. This package gives you a command for it:
 
 ```bash
 php artisan telescope:inspect --requests --last=1h
@@ -15,98 +15,82 @@ php artisan telescope:inspect --requests --last=1h
 
 ```text
 Requests · showing 50 of 184 · last 1h
-──────────────────────────────────────
-Avg 1.12s · P95 3.80s · Statuses: 200×171   500×9   302×4
+--------------------------------------
 
-Method  URI                       Reqs   Avg     P95     Avg queries
-GET     /orders                   42     842ms   1.70s   38
-POST    /checkout                 17     1.94s   3.80s   61
+ Avg 1.12s · P95 3.80s · Statuses: 200×171   500×9   302×4
+
+ Method  URI                       Reqs   Avg     P95     Avg queries
+ GET     /orders                   42     842ms   1.70s   38
+ POST    /checkout                 17     1.94s   3.80s   61
 ```
-
-## Why
-
-- **Humans** get summaries instead of thousands of rows: slowest routes, most expensive queries, exception signatures, failing jobs.
-- **Scripts & CI** get stable JSON (`--json`, `--ndjson`) and meaningful exit codes (`--fail-on`).
-- **AI agents / MCP adapters** get a normalized, documented observability feed — no screen scraping, no DB coupling.
-- **Everyone** stays local. Nothing ever leaves your machine.
 
 ## Installation
 
-Requires PHP 8.2+, Laravel 11/12/13 and [Laravel Telescope](https://laravel.com/docs/telescope) ^5.0.
+Requires PHP 8.2 or newer, Laravel 11, 12, or 13, and Laravel Telescope ^5.0 with its migrations run.
 
 ```bash
 composer require --dev mrpunyapal/telescope-inspect
 ```
 
-The service provider is discovered automatically.
+The service provider is discovered automatically. Nothing else to configure.
 
 ## Usage
 
+Run it with no arguments for an overview of entry counts per type:
+
 ```bash
-# Overview of everything recorded
 php artisan telescope:inspect
-
-# Slow requests in the last hour
-php artisan telescope:inspect --requests --last=1h
-
-# Heavy queries
-php artisan telescope:inspect --queries --min-duration=500
-
-# Exceptions from the last day, grouped by signature
-php artisan telescope:inspect --exceptions --last=24h
-
-# Failed jobs
-php artisan telescope:inspect --jobs --failed --last=24h
-
-# Combine types and filters freely
-php artisan telescope:inspect --requests --queries --exceptions --last=1h
-
-# Machine-readable output
-php artisan telescope:inspect --requests --queries --json
 ```
 
-### Entry types
+Pick entry types with flags:
 
-`--requests` `--queries` `--exceptions` `--jobs` `--commands` `--schedule` `--cache` `--dumps` `--events` `--gates` `--http` `--logs` `--mail` `--models` `--notifications` `--redis` `--views` `--batches`
+```bash
+php artisan telescope:inspect --requests --last=1h          # slow requests
+php artisan telescope:inspect --queries --min-duration=500  # heavy queries
+php artisan telescope:inspect --exceptions --last=24h       # recent exceptions
+php artisan telescope:inspect --jobs --failed --last=24h    # failed jobs
+```
 
-Every type has a documented, stable set of normalized fields ([field reference](https://mrpunyapal.github.io/telescope-inspect/json-output)).
+All 18 Telescope entry types are supported: requests, queries, exceptions, jobs, commands, schedule, cache, dumps, events, gates, http (outgoing client requests), logs, mail, models, notifications, redis, views, batches. Each type has a fixed set of normalized fields; see [the field reference](https://mrpunyapal.github.io/telescope-inspect/json-output).
 
 ### Filters
 
 | Filter | Example |
 | --- | --- |
 | Time window | `--last=15m` · `--from=2026-08-01` · `--to="2026-08-02 14:30"` |
-| Limit | `--limit=100` (across all selected types, newest first) |
+| Limit | `--limit=100` |
 | Duration | `--min-duration=250` (milliseconds) |
-| Route | `--route="*orders*"` or `--route=OrderController@store` (fnmatch against the stored URI such as `/orders`, or substring) |
+| Route | `--route="*orders*"` or `--route=OrderController@store` |
 | HTTP | `--method=GET,POST` · `--status=500,404` |
 | Queue | `--failed` · `--connection=redis` |
-| Free-text | `--search=checkout` (matches tags or content) |
+| Free text | `--search=checkout` (matches tags or content) |
 
-Filters compose naturally:
+Filters combine. For example:
 
 ```bash
 php artisan telescope:inspect --http --status=500 --method=POST --last=6h
 ```
 
-### Deep-dive a single entry
+### Single entries
 
 ```bash
-php artisan telescope:inspect --show=9d1f8a0e-1c2b-3d4e-5f60-7a8b9c0d1e2f
+php artisan telescope:inspect --show=<uuid>
 ```
 
-Prints every normalized field for that UUID — sensitive fields require `--full`. Add `--json` for structured consumption.
+Prints every normalized field for one entry. Sensitive fields need `--full`.
 
 ### Analysis
 
-Selecting an analyzable type adds summaries to both human output and JSON:
+Selecting requests, queries, exceptions, or jobs adds summaries:
 
-- **Requests** — avg/P95 durations, status distribution, slowest routes with average queries per request, the single slowest request.
-- **Queries** — slowest queries with caller location, most time-consuming SQL patterns, **likely N+1 detection** (identical SQL repeated within one request batch — reported as *likely*, never certain).
-- **Exceptions** — recurring signatures with occurrence counts and last-seen times.
-- **Jobs** — status/queue distribution, failures with exception messages, recurring failure ranking.
+- Requests: average and P95 duration, status codes, slowest routes, queries per route.
+- Queries: slowest queries with caller location, most repeated SQL patterns, and likely N+1 detection (identical SQL repeated within one request). The N+1 check is a heuristic and is labeled as such.
+- Exceptions: signatures grouped by class, file, and line, with counts.
+- Jobs: status and queue distribution, failures with exception messages.
 
-### JSON output
+### JSON
+
+Add `--json` for machine-readable output. The output is valid JSON with no formatting or extra text on stdout:
 
 ```bash
 php artisan telescope:inspect --requests --queries --exceptions --jobs --last=1h --json
@@ -134,39 +118,43 @@ php artisan telescope:inspect --requests --queries --exceptions --jobs --last=1h
 }
 ```
 
-Valid JSON only — no ANSI codes or decoration on stdout. Pipe it anywhere:
+The envelope is versioned. Within schema version 1.x, existing keys keep their meaning and new keys may appear.
+
+There is also `--ndjson` for one compact JSON object per line, which is convenient with tools like jq:
 
 ```bash
 php artisan telescope:inspect --queries --last=1h --ndjson | jq 'select(.duration_ms > 500)'
-php artisan telescope:inspect --requests --json > telescope.json
 ```
 
-The envelope is a versioned contract: within `schema_version: 1.x`, existing keys keep their meaning; new keys may appear.
+### Exit codes
 
-### CI gates
+| Code | Meaning |
+| --- | --- |
+| 0 | Success |
+| 1 | Runtime failure (missing Telescope tables, unknown UUID) |
+| 2 | Invalid usage (bad filter values or combinations) |
+| 3 | Issues found via `--fail-on` |
+
+Finding issues does not fail the command unless you pass `--fail-on`:
 
 ```bash
 php artisan telescope:inspect --fail-on=exceptions,failed-jobs --last=15m
 php artisan telescope:inspect --fail-on=slow-queries --min-duration=1000 --last=1h
 ```
 
-Exit codes: `0` success · `1` runtime failure · `2` invalid usage · `3` issues found via `--fail-on`.
-
-Finding issues does **not** fail the command unless you ask for it.
-
 ## Privacy
 
-Telescope already masks configured hidden parameters. On top of that, this package omits sensitive fields (payloads, headers, sessions, query bindings, stack traces, cache values...) from all output by default. Pass `--full` to include them when you genuinely need them — treat such output as secret material. All processing is local; no network calls exist in this package.
+Telescope already masks configured hidden parameters before storing anything. This package additionally omits fields that tend to contain sensitive values (request payloads, headers, sessions, query bindings, stack traces, cache values) from all output. Pass `--full` when you actually need them, and treat that output as secret. The package makes no network requests.
 
 ## Configuration
 
-Defaults are excellent; publishing config is optional:
+Defaults work without publishing anything. If you want to change redaction, truncation, scan limits, or the slow threshold:
 
 ```bash
 php artisan vendor:publish --tag=telescope-inspect-config
 ```
 
-Available knobs: redaction toggle, value truncation limit, scan limit, analysis bound, slow threshold. See [docs/configuration](https://mrpunyapal.github.io/telescope-inspect/configuration).
+See [docs/configuration](https://mrpunyapal.github.io/telescope-inspect/configuration) for the available keys.
 
 ## Supported versions
 
@@ -176,34 +164,36 @@ Available knobs: redaction toggle, value truncation limit, scan limit, analysis 
 | Laravel | ^11.0 \| ^12.0 \| ^13.0 |
 | Laravel Telescope | ^5.0 |
 
-## Architecture
+## How it works
 
 ```
 Telescope storage
       ↓
-EntryRepository          database-side filtering, bounded scans
+EntryRepository          SQL filtering, bounded scans
       ↓
-ContentNormalizer        raw content → stable normalized fields
+ContentNormalizer        raw content arrays to stable normalized fields
       ↓
-Analyzers                route/query/exception/job aggregation
+Analyzers                request, query, exception, job aggregation
       ↓
-InspectionResult         typed result object (the integration point)
+InspectionResult         typed result object
       ↓
 HumanPresenter · JsonPresenter
 ```
 
-The Artisan command is a thin wrapper around `TelescopeInspector::inspect(InspectFilters): InspectionResult`. Future MCP adapters or IDE integrations should consume that service directly instead of duplicating query logic.
+The Artisan command is a thin wrapper around `TelescopeInspector::inspect(InspectFilters): InspectionResult`. If you want to build tooling on top (an MCP server, an IDE plugin), use that service instead of querying Telescope yourself.
+
+Scans are bounded (`scan_limit`, default 5000 newest rows) and long values are truncated (`value_limit`, default 1000 characters), so large Telescope tables stay safe to query.
 
 ## Testing
 
 ```bash
-composer test       # Pest suite against Testbench + real Telescope migrations
+composer test       # Pest suite against Testbench and real Telescope migrations
 composer analyse    # PHPStan / Larastan level 6
 composer lint       # Pint
-composer check      # all of the above
+composer check      # all of the above plus composer validate
 ```
 
-Tests insert realistic Telescope rows into Telescope's actual migrations and assert against real database queries — no storage mocking.
+Tests insert realistic Telescope rows into Telescope's actual migrations and query them back. Storage is not mocked.
 
 ## Contributing
 
@@ -211,12 +201,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and the [documentation site](https://mrpu
 
 ## Security
 
-If you discover a security vulnerability, please follow [SECURITY.md](SECURITY.md). Please do not use public issue trackers for security disclosures.
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## Changelog
 
-All notable changes live in [CHANGELOG.md](CHANGELOG.md).
+Notable changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

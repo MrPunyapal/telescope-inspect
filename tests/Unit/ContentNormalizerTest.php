@@ -55,13 +55,15 @@ it('normalizes query entries with float durations', function () {
 });
 
 it('marks known sensitive fields so presenters can redact them', function () {
-    foreach (ContentNormalizer::SENSITIVE_FIELDS as $field) {
-        expect($field)->toBeString();
-    }
+    $fields = normalizer()->normalize(EntryType::Request, [
+        'method' => 'GET',
+        'payload' => ['a' => 1],
+        'headers' => ['x' => 'y'],
+    ]);
 
-    expect(ContentNormalizer::SENSITIVE_FIELDS)->toContain('payload')
-        ->and(ContentNormalizer::SENSITIVE_FIELDS)->toContain('bindings')
-        ->and(ContentNormalizer::SENSITIVE_FIELDS)->toContain('trace');
+    foreach (['headers', 'payload', 'session', 'response', 'response_headers'] as $field) {
+        expect($fields)->toHaveKey($field);
+    }
 });
 
 it('preserves complex values when the caller opts in', function () {

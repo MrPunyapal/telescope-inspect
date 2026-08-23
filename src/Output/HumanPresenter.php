@@ -56,6 +56,10 @@ final class HumanPresenter
         foreach ($result->itemsByType as $typeValue => $entries) {
             $this->renderType($result, EntryType::from($typeValue), $entries);
         }
+
+        if ($result->scanTruncated) {
+            $this->output->text('<fg=gray>Note: the newest '.$result->scanLimit.' rows were scanned; older matching entries were not considered.</>');
+        }
     }
 
     /**
@@ -152,6 +156,14 @@ final class HumanPresenter
         ));
 
         if ($entries === []) {
+            $inWindow = $result->countsByType[$type->value] ?? 0;
+
+            if ($inWindow > 0) {
+                $this->output->text("{$type->label()} exist in the window but none are among the newest {$result->filters->limit} entries. Raise --limit, or narrow with filters.");
+
+                return;
+            }
+
             $this->output->text("No {$type->label()} entries here. Widen the window with --last=24h or --from=<date>.");
 
             return;

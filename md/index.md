@@ -1,14 +1,8 @@
 # Telescope Inspect
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/mrpunyapal/telescope-inspect.svg?style=flat-square)](https://packagist.org/packages/mrpunyapal/telescope-inspect)
-[![Total Downloads](https://img.shields.io/packagist/dt/mrpunyapal/telescope-inspect.svg?style=flat-square)](https://packagist.org/packages/mrpunyapal/telescope-inspect)
-[![License](https://img.shields.io/packagist/l/mrpunyapal/telescope-inspect.svg?style=flat-square)](https://packagist.org/packages/mrpunyapal/telescope-inspect)
+Query Laravel Telescope data from the command line. It prints readable summaries for people and JSON for scripts, CI jobs, and other tools.
 
-Laravel Telescope inspection from the command line — human-friendly output with first-class JSON for scripts, CI, AI agents, and tooling.
-
-Telescope is brilliant at recording what your application did. But answering questions like *"which routes were slow in the last hour?"*, *"what keeps failing on the queue?"*, or *"is this endpoint doing an N+1?"* means opening a browser dashboard and clicking around.
-
-**Telescope Inspect** turns Telescope's recorded data into a queryable, summarizable dataset you can drive from the terminal:
+Telescope records a lot. Answering questions like "which routes were slow this hour" or "what keeps failing on the queue" usually means clicking through the dashboard or writing SQL against `telescope_entries`. This package gives you a command for it:
 
 ```bash
 php artisan telescope:inspect --requests --last=1h
@@ -16,30 +10,24 @@ php artisan telescope:inspect --requests --last=1h
 
 ```text
 Requests · showing 50 of 184 · last 1h
-───────────────────────────────────────
-Avg 1.12s · P95 3.80s · Statuses: 200×171   500×9   302×4
+--------------------------------------
 
-Method  URI                      Reqs   Avg      P95     Avg queries
-GET     /orders                  42     842ms    1.70s   38
-POST    /checkout                17     1.94s    3.80s   61
-...
+ Avg 1.12s · P95 3.80s · Statuses: 200×171   500×9   302×4
+
+ Method  URI                       Reqs   Avg     P95     Avg queries
+ GET     /orders                   42     842ms   1.70s   38
+ POST    /checkout                 17     1.94s   3.80s   61
 ```
 
-## Why it exists
+## What it does
 
-- **Humans** get readable summaries instead of thousands of rows: slowest routes, most time-consuming queries, recurring exceptions, failing jobs.
-- **Scripts and CI** get stable JSON (`--json`, `--ndjson`) and meaningful exit codes (`--fail-on=...`).
-- **AI agents and MCP adapters** get a clean, normalized observability data source — no screen scraping, no database coupling.
-- **Everyone** stays local: no data leaves your machine, ever.
+- Lists any of the 18 Telescope entry types with filters (time window, duration, route, status, connection, free text search).
+- Summarizes requests, queries, exceptions, and jobs: slow routes with P95 durations, repeated SQL patterns, likely N+1 detection, exception signatures, failing jobs.
+- Emits a versioned JSON envelope with `--json`, or one JSON object per line with `--ndjson`.
+- Exits non-zero on demand via `--fail-on` for CI pipelines.
+- Redacts fields that tend to contain sensitive values unless you ask for them.
 
-## Highlights
-
-- All 18 Telescope entry types inspectable, each with normalized, documented fields
-- Database-side time filtering with human durations (`--last=15m`, `--last=7d`) or explicit windows (`--from` / `--to`)
-- Content-aware filters: `--route`, `--method`, `--status`, `--min-duration`, `--connection`, `--search`
-- Analysis built in: route percentiles, slow/frequent queries, **likely N+1 detection**, exception signatures, job failure tracking
-- Bounded by design: scan limits and value truncation keep huge Telescope tables safe to query
-- Privacy-first: sensitive fields (payloads, bindings, stack traces) redacted unless explicitly requested
+Everything runs locally against Telescope's own storage tables. The package makes no network requests.
 
 ## Requirements
 
@@ -49,7 +37,7 @@ POST    /checkout                17     1.94s    3.80s   61
 | Laravel | 11 / 12 / 13 |
 | Laravel Telescope | ^5.0 |
 
-## A taste of the JSON contract
+## A look at the JSON
 
 ```bash
 php artisan telescope:inspect --requests --queries --exceptions --jobs --last=1h --json
@@ -72,11 +60,12 @@ php artisan telescope:inspect --requests --queries --exceptions --jobs --last=1h
             }
         }
     },
+    "violations": [],
     "items": [{ "uuid": "...", "type": "request", "duration_ms": 842 }]
 }
 ```
 
-Feed that straight into `jq`, a CI gate, an IDE extension, or your favorite agent.
+The full contract is documented in [json-output.md](json-output.md).
 
 ## Next steps
 

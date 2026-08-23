@@ -9,10 +9,10 @@ use MrPunyapal\TelescopeInspect\Filters\InspectFilters;
 /**
  * The result of an inspection run.
  *
- * Presenters (and any future integration such as an MCP adapter) consume
- * this object; nothing here knows about terminals or JSON encoding.
- *
- * @internal
+ * Presenters (and any integration such as an MCP adapter) consume this
+ * object; nothing here knows about terminals or JSON encoding. Together
+ * with TelescopeInspector and InspectFilters this is the package's
+ * supported programmatic API.
  */
 final class InspectionResult
 {

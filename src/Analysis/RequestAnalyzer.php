@@ -153,8 +153,8 @@ final class RequestAnalyzer
                     $queryTotal += (int) $queryCounts->get((string) $batch, 0);
                 }
                 $route['avg_queries_per_request'] = count($batches) > 0
-                                    ? round($queryTotal / count($batches), 1)
-                                    : null;
+                    ? round($queryTotal / count($batches), 1)
+                    : null;
 
                 ksort($route['status_codes']);
 
