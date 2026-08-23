@@ -9,10 +9,10 @@ php artisan telescope:inspect --requests --last=1h
 ```
 
 ```text
-Requests · showing 50 of 184 · last 1h
+Requests Â· showing 50 of 184 Â· last 1h
 --------------------------------------
 
- Avg 1.12s · P95 3.80s · Statuses: 200×171   500×9   302×4
+ Avg 1.12s Â· P95 3.80s Â· Statuses: 200Ã—171   500Ã—9   302Ã—4
 
  Method  URI                       Reqs   Avg     P95     Avg queries
  GET     /orders                   42     842ms   1.70s   38
@@ -33,7 +33,7 @@ Everything runs locally against Telescope's own storage tables. The package make
 
 | Package | Version |
 | --- | --- |
-| PHP | ^8.2 |
+| PHP | ^8.3 |
 | Laravel | 11 / 12 / 13 |
 | Laravel Telescope | ^5.0 |
 

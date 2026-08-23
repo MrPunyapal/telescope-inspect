@@ -30,7 +30,7 @@ You should see an overview of everything Telescope has recorded. The tool only r
 
 ## Requirements
 
-- PHP 8.2 or newer
+- PHP 8.3 or newer
 - Laravel 11, 12, or 13
 - Laravel Telescope ^5.0 with its migrations run
 

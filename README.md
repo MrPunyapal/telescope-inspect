@@ -14,10 +14,10 @@ php artisan telescope:inspect --requests --last=1h
 ```
 
 ```text
-Requests · showing 50 of 184 · last 1h
+Requests Â· showing 50 of 184 Â· last 1h
 --------------------------------------
 
- Avg 1.12s · P95 3.80s · Statuses: 200×171   500×9   302×4
+ Avg 1.12s Â· P95 3.80s Â· Statuses: 200Ã—171   500Ã—9   302Ã—4
 
  Method  URI                       Reqs   Avg     P95     Avg queries
  GET     /orders                   42     842ms   1.70s   38
@@ -26,7 +26,7 @@ Requests · showing 50 of 184 · last 1h
 
 ## Installation
 
-Requires PHP 8.2 or newer, Laravel 11, 12, or 13, and Laravel Telescope ^5.0 with its migrations run.
+Requires PHP 8.3 or newer, Laravel 11, 12, or 13, and Laravel Telescope ^5.0 with its migrations run.
 
 ```bash
 composer require --dev mrpunyapal/telescope-inspect
@@ -57,12 +57,12 @@ All 18 Telescope entry types are supported: requests, queries, exceptions, jobs,
 
 | Filter | Example |
 | --- | --- |
-| Time window | `--last=15m` · `--from=2026-08-01` · `--to="2026-08-02 14:30"` |
+| Time window | `--last=15m` Â· `--from=2026-08-01` Â· `--to="2026-08-02 14:30"` |
 | Limit | `--limit=100` |
 | Duration | `--min-duration=250` (milliseconds) |
 | Route | `--route="*orders*"` or `--route=OrderController@store` |
-| HTTP | `--method=GET,POST` · `--status=500,404` |
-| Queue | `--failed` · `--connection=redis` |
+| HTTP | `--method=GET,POST` Â· `--status=500,404` |
+| Queue | `--failed` Â· `--connection=redis` |
 | Free text | `--search=checkout` (matches tags or content) |
 
 Filters combine. For example:
@@ -160,7 +160,7 @@ See [docs/configuration](https://mrpunyapal.github.io/telescope-inspect/configur
 
 | Package | Versions |
 | --- | --- |
-| PHP | ^8.2 |
+| PHP | ^8.3 |
 | Laravel | ^11.0 \| ^12.0 \| ^13.0 |
 | Laravel Telescope | ^5.0 |
 
@@ -168,16 +168,16 @@ See [docs/configuration](https://mrpunyapal.github.io/telescope-inspect/configur
 
 ```
 Telescope storage
-      ↓
+      â†“
 EntryRepository          SQL filtering, bounded scans
-      ↓
+      â†“
 ContentNormalizer        raw content arrays to stable normalized fields
-      ↓
+      â†“
 Analyzers                request, query, exception, job aggregation
-      ↓
+      â†“
 InspectionResult         typed result object
-      ↓
-HumanPresenter · JsonPresenter
+      â†“
+HumanPresenter Â· JsonPresenter
 ```
 
 The Artisan command is a thin wrapper around `TelescopeInspector::inspect(InspectFilters): InspectionResult`. If you want to build tooling on top (an MCP server, an IDE plugin), use that service instead of querying Telescope yourself.
