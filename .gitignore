@@ -1,0 +1,9 @@
+/vendor
+/node_modules
+/workbench
+/docs
+.phpunit.result.cache
+.phpunit.cache
+.phpstan-cache
+.DS_Store
+Thumbs.db

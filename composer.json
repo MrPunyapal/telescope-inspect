@@ -1,0 +1,86 @@
+{
+    "name": "mrpunyapal/telescope-inspect",
+    "description": "Laravel Telescope inspection from the command line - human-friendly output with first-class JSON for scripts, CI, AI agents, and tooling.",
+    "keywords": [
+        "laravel",
+        "telescope",
+        "cli",
+        "artisan",
+        "observability",
+        "debugging",
+        "json"
+    ],
+    "homepage": "https://github.com/MrPunyapal/telescope-inspect",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Punyapal Shah",
+            "email": "mrpunyapal@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/console": "^11.0|^12.0|^13.0",
+        "illuminate/contracts": "^11.0|^12.0|^13.0",
+        "illuminate/database": "^11.0|^12.0|^13.0",
+        "illuminate/support": "^11.0|^12.0|^13.0",
+        "laravel/telescope": "^5.0"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.13",
+        "mrpunyapal/docsmith": "^0.3.0",
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
+        "pestphp/pest": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "MrPunyapal\\TelescopeInspect\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MrPunyapal\\TelescopeInspect\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "MrPunyapal\\TelescopeInspect\\TelescopeInspectServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": [
+            "@php vendor/bin/pest --no-coverage"
+        ],
+        "analyse": [
+            "@php vendor/bin/phpstan analyse --no-progress"
+        ],
+        "lint": [
+            "@php vendor/bin/pint --test"
+        ],
+        "fix": [
+            "@php vendor/bin/pint"
+        ],
+        "docs": [
+            "@php build-docs.php"
+        ],
+        "check": [
+            "@composer validate --strict",
+            "@lint",
+            "@analyse",
+            "@test"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "phpstan/extension-installer": false
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

@@ -1,0 +1,28 @@
+# Normalize line endings and export settings
+* text=auto eol=lf
+
+*.php text eol=lf diff=php
+*.json text eol=lf
+*.md text eol=lf diff=markdown
+*.yml text eol=lf
+*.yaml text eol=lf
+*.neon text eol=lf
+*.xml text eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+
+# Do not export development files in dist archives
+/.github            export-ignore
+/tests              export-ignore
+/md                 export-ignore
+/workbench          export-ignore
+/phpunit.xml.dist   export-ignore
+/pint.json          export-ignore
+/phpstan.neon       export-ignore
+/build-docs.php     export-ignore
+/CONTRIBUTING.md    export-ignore
+/SECURITY.md        export-ignore

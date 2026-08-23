@@ -1,0 +1,68 @@
+name: tests
+
+on:
+  push:
+    branches:
+      - main
+      - '*.x'
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        php: [8.3, 8.4]
+        laravel: [11.*, 12.*, 13.*]
+        stability: [prefer-lowest, prefer-stable]
+        include:
+          - laravel: 11.*
+            testbench: 9.*
+          - laravel: 12.*
+            testbench: 10.*
+          - laravel: 13.*
+            testbench: 11.*
+        exclude:
+          - laravel: 13.*
+            php: '8.2'
+
+    name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.stability }} - ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, curl, libxml, mbstring, zip, fileinfo, sqlite, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: |
+          composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
+          composer update --${{ matrix.stability }} --prefer-dist --no-interaction --no-progress
+
+      - name: List installed versions
+        run: composer show | grep -E "laravel/framework|laravel/telescope|orchestra/testbench " || true
+
+      - name: Lint
+        run: vendor/bin/pint --test
+
+      - name: Static analysis
+        run: vendor/bin/phpstan analyse --no-progress
+
+      - name: Tests
+        run: vendor/bin/pest --no-coverage
