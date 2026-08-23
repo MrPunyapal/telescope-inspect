@@ -21,9 +21,9 @@ composer check      # validate + lint + analyse + test
 
 The pipeline is strictly one-directional:
 
-1. `InspectFilters` (src/Filters) parses CLI flags into a value object.
+1. `InspectFilters` (src/Filters) parses CLI flags or semantic arrays into a value object.
 2. `EntryRepository` (src/Query) runs bounded SQL against `telescope_entries` (newest-first, capped by `scan_limit`).
-3. `ContentNormalizer` (src/Normalization) turns raw Telescope `content` JSON into stable per-type fields.
+3. `ContentNormalizer` (src/Normalizers) turns raw Telescope `content` JSON into stable per-type fields.
 4. Analyzers (src/Analysis) aggregate requests, queries, exceptions and jobs.
 5. `InspectionResult` carries everything; `HumanPresenter` and `JsonPresenter` (src/Output) render it.
 
@@ -33,7 +33,7 @@ See [md/architecture.md](md/architecture.md) for the full reference.
 
 - The `--json` envelope is a public contract. Within schema version `1.x`, never rename or remove keys; additions are allowed but must be documented in `md/json-output.md` and noted in `CHANGELOG.md`.
 - Tests must exercise Telescope's real migrations through Orchestra Testbench (`tests/TestCase.php`). Do not mock the storage layer.
-- Source and docs stay ASCII-safe except the intentional separators produced by `HumanPresenter` (U+00B7 middle dot, U+00D7 multiplication sign). No em dashes or smart quotes anywhere.
+- Source and docs stay ASCII-safe except the intentional separators produced by output code (U+00B7 middle dot, U+00D7 multiplication sign, U+2026 ellipsis). No em dashes or smart quotes anywhere.
 - Documentation lives in `md/*.md` and builds with docsmith. Frontmatter `order:` controls sidebar position; keep `index.md` at order 1.
 - The changelog is maintained manually in Keep a Changelog format. There is intentionally no automation committing to it.
 

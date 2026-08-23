@@ -110,7 +110,7 @@ Selecting requests, queries, exceptions, or jobs adds summaries:
 
 ### JSON
 
-Add `--json` for machine-readable output. The output is valid JSON with no formatting or extra text on stdout:
+Add `--json` for machine-readable output. The output is valid JSON with no formatting or extra text on stdout (diagnostics go to stderr as plain text), and a versioned envelope keeps scripts stable across releases. The full machine-checkable contract lives in [`schema/telescope-inspect-v1.schema.json`](schema/telescope-inspect-v1.schema.json):
 
 ```bash
 php artisan telescope:inspect --requests --queries --exceptions --jobs --last=1h --json
@@ -174,7 +174,7 @@ php artisan telescope:inspect --fail-on=slow-queries --min-duration=1000 --last=
 
 ## Privacy
 
-Telescope already masks configured hidden parameters before storing anything. This package additionally omits fields that tend to contain sensitive values (request payloads, headers, sessions, query bindings, stack traces, cache values) from all output. Pass `--full` when you actually need them, and treat that output as secret. The package makes no network requests.
+Telescope already masks configured hidden parameters before storing anything. This package additionally omits fields that tend to contain sensitive values (request payloads, headers, sessions, query strings, query bindings, stack traces, cache values, dumped variables, Redis command arguments) from all output. Pass `--full` when you actually need them, and treat that output as secret. The package makes no network requests.
 
 ## Configuration
 
@@ -193,6 +193,8 @@ See [docs/configuration](https://mrpunyapal.github.io/telescope-inspect/configur
 | PHP | ^8.3 |
 | Laravel | ^11.0 \| ^12.0 \| ^13.0 |
 | Laravel Telescope | ^5.0 |
+
+Composer resolves the intersection automatically: Laravel 12 needs Telescope 5.5+, Laravel 13 needs 5.18+. CI runs the full matrix on Linux and Windows (including lowest-bound installs and PHP 8.5) plus a MySQL integration job; everything else is SQLite-based. Only long-stable Telescope APIs are used (`Storage\EntryModel`, `Contracts\EntriesRepository`).
 
 ## How it works
 

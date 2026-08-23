@@ -19,11 +19,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
         php: [8.3, 8.4]
-        laravel: [11.*, 12.*, 13.*]
+        laravel: ['11.*', '12.*', '13.*']
         stability: [prefer-lowest, prefer-stable]
         include:
           - laravel: 11.*
@@ -32,6 +32,16 @@ jobs:
             testbench: 10.*
           - laravel: 13.*
             testbench: 11.*
+          # PHP 8.5 entered GA after Laravel 11's support window.
+          - php: 8.5
+            laravel: '12.*'
+            testbench: 10.*
+          - php: 8.5
+            laravel: '13.*'
+            testbench: 11.*
+        exclude:
+          - php: 8.5
+            laravel: '11.*'
 
     name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.stability }} - ${{ matrix.os }}
 
@@ -57,6 +67,46 @@ jobs:
 
       - name: Tests
         run: vendor/bin/pest --no-coverage
+
+  mysql:
+    runs-on: ubuntu-latest
+
+    name: MySQL integration (locked)
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: telescope_inspect_test
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, curl, libxml, mbstring, zip, fileinfo, pdo_mysql
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies (locked)
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Tests against MySQL
+        run: vendor/bin/pest --no-coverage
+        env:
+          TESTING_DB_DRIVER: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_DATABASE: telescope_inspect_test
+          DB_USERNAME: root
+          DB_PASSWORD: ''
 
   checks:
     runs-on: ubuntu-latest

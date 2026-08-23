@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a8fc0b70fe2446cdb554d90472c23b31",
+    "content-hash": "ce3c8a7f6392034ecf4828594556f491",
     "packages": [
         {
             "name": "brick/math",
@@ -6978,16 +6978,16 @@
         },
         {
             "name": "mrpunyapal/docsmith",
-            "version": "v0.3.0",
+            "version": "v0.3.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/MrPunyapal/docsmith.git",
-                "reference": "f5eebfa656740a70ef022216550485e107e8729f"
+                "reference": "b88847ef1b54f530e307a81125dcf070f2cd1d6d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/MrPunyapal/docsmith/zipball/f5eebfa656740a70ef022216550485e107e8729f",
-                "reference": "f5eebfa656740a70ef022216550485e107e8729f",
+                "url": "https://api.github.com/repos/MrPunyapal/docsmith/zipball/b88847ef1b54f530e307a81125dcf070f2cd1d6d",
+                "reference": "b88847ef1b54f530e307a81125dcf070f2cd1d6d",
                 "shasum": ""
             },
             "require": {
@@ -7020,7 +7020,7 @@
             "description": "Craft static documentation sites from Markdown with minimal setup.",
             "support": {
                 "issues": "https://github.com/MrPunyapal/docsmith/issues",
-                "source": "https://github.com/MrPunyapal/docsmith/tree/v0.3.0"
+                "source": "https://github.com/MrPunyapal/docsmith/tree/v0.3.1"
             },
             "funding": [
                 {
@@ -7028,7 +7028,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-08-22T17:16:39+00:00"
+            "time": "2026-08-23T11:05:16+00:00"
         },
         {
             "name": "mrpunyapal/git-reader",
@@ -10398,9 +10398,9 @@
         }
     ],
     "aliases": [],
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "stability-flags": {},
-    "prefer-stable": true,
+    "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
         "php": "^8.3"

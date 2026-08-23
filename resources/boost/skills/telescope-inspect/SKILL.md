@@ -37,7 +37,7 @@ php artisan telescope:inspect --jobs --failed --last=24h
 # Full lifecycle of one request or job, chronologically
 php artisan telescope:inspect --batch=<batch-id>
 
-# Every stored field of one entry
+# Every stored field of one entry (add --full for sensitive fields)
 php artisan telescope:inspect --show=<uuid>
 
 # Tail new entries as they happen
@@ -67,6 +67,7 @@ Other types: `--commands --schedule --cache --dumps --events --gates --http --lo
   work.
 - `summary.scan.truncated = true` means the bounded newest-first scan hit
   its ceiling; widen `--last` carefully or raise `scan_limit` in config.
+  Each analysis also reports rows_scanned so partial coverage is visible.
 - Exceptions are grouped by class + file + line. Use `--show=<uuid>` on a
   sample for the full context.
 

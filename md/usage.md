@@ -94,7 +94,7 @@ Every entry Telescope records during one request or job shares a batch id. Repla
 php artisan telescope:inspect --batch=<batch-id>
 ```
 
-Batch mode ignores time windows and filters on purpose. Combine with `--json` to hand an agent or a teammate's script the complete story of one request.
+Batch mode cannot be combined with narrowing filters or `--limit` - that combination is invalid usage (exit 2). Combine with `--json` to hand an agent or a teammate's script the complete story of one request, and note that a bus batch id (the id of an Illuminate\Bus batch) is resolved through its recorded entries too. A batch id that matches nothing exits `1`.
 
 ## Watching live traffic
 
@@ -103,7 +103,9 @@ php artisan telescope:inspect --requests --queries --watch
 php artisan telescope:inspect --exceptions --watch=5   # check every 5 seconds
 ```
 
-The command starts from what is already stored and prints new entries as they arrive, one line each. Add `--ndjson` for machine-consumable lines. Press Ctrl+C to stop.
+The command starts from what is already stored and prints new entries as they arrive, one line each. Add `--ndjson` for machine-consumable lines (the start-up banner stays on the human stream, so piped output is pure). Content filters such as `--min-duration`, `--status`, or `--search` cannot be combined with `--watch`: it streams everything of the selected types. Press Ctrl+C to stop; watch mode only ends by signal.
+
+Job entries are recorded at dispatch time and updated in place later, so time windows for `--jobs --failed` filter by when a job was dispatched, not when it failed - use a wide enough window to catch late failures.
 
 ## Managing monitored tags
 

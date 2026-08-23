@@ -7,7 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased](https://github.com/MrPunyapal/telescope-inspect/commits/main)
 
-Nothing yet.
+Hardening release: correctness, privacy, and contract fixes from a full external audit. No new features; several behavior changes are intentional and documented below.
+
+### Changed
+
+- **Privacy**: request and HTTP-client `uri` now carries the path only; the query string moved to a gated `query_string` field (reset tokens, OAuth codes, API keys no longer leak into default output or route aggregation).
+- **Privacy**: Redis entries show only the command verb and first argument (usually the key) by default; remaining parameters moved to gated `arguments`.
+- **Privacy**: dump content (`--dumps`) is now redacted by default like other sensitive fields; entry-point links stay visible.
+- **Privacy**: scheduled-task output is redacted by default.
+- **JSON**: `summary.analysis_scoped_to_filters` renamed to `content_filters_present` - the old name implied analysis was filtered, which it never was.
+- Machine modes (`--json`, `--ndjson`) now emit diagnostics on stderr as plain text so stdout stays parseable; human output is unchanged.
+- A missing UUID now exits `1` in every output mode (JSON previously exited 0 with `"entry": null`). Same for a batch id that matches nothing.
+- `--search` treats `%`, `_` and `\` as literal characters on every database driver (verified after fetch), matches terms stored JSON-escaped by Telescope (slashes, backslashes, non-ASCII), and documents its case semantics.
+
+### Fixed
+
+- Scan-truncation flag produced false positives when the table was smaller than the scan ceiling; `summary.scan.truncated` is now exact.
+- `--batch` replays are bounded by `scan_limit` with truncation reported instead of loading an unbounded lifecycle into memory; bus batch ids resolve through their recorded entries.
+- Watch mode no longer prints its start-up banner into piped NDJSON/JSON streams, honors `--full`, validates the interval argument, and drains bursts without waiting between polls.
+- The recording of the inspection's own queries is stopped during runs, so results no longer drift from what Telescope's dashboard shows.
+- Overview "failed jobs" tip never fired; failed jobs are counted directly from storage now.
+- Exception entries expose Telescope's merged `occurrences` counter; dumps expose their entry-point links.
+- Route aggregation groups by URI path rather than full URL with query string.
+- `scan_limit` clamping is applied once at binding time so JSON provenance reports the effective value; `value_limit` is clamped too.
+
+### Added
+
+- Formal JSON Schema for the v1 contract: `schema/telescope-inspect-v1.schema.json`.
+- `InspectFilters::fromArray()` - documented programmatic API that actually exists now, accepting semantic keys.
+- `rows_scanned` counters in every analysis summary; violations hint shows the effective slow threshold.
+- Human query listings show a `xN` repetition badge per repeated SQL pattern and remain visible under the analysis summary.
+- CI: PHP 8.5 matrix cells, MySQL integration job, fail-fast disabled.
+
+### Removed
+
+- Composer root-only `minimum-stability: dev` / `prefer-stable` settings (not load-bearing).
 
 ## 0.1.1 - 2026-08-23
 
