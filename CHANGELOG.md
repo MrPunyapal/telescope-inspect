@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing yet.
 
+## 0.1.1 - 2026-08-23
+
+### Fixed
+
+- Repaired character-encoding corruption in the README and documentation pages (garbled separator characters in sample output and stray mojibake).
+
 ## 0.1.0 - 2026-08-23
 
 Initial release.
