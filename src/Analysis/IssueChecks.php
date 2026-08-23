@@ -3,6 +3,7 @@
 namespace MrPunyapal\TelescopeInspect\Analysis;
 
 use Illuminate\Support\Collection;
+use MrPunyapal\TelescopeInspect\Entries\EntryType;
 use MrPunyapal\TelescopeInspect\InspectionResult;
 
 /**
@@ -16,7 +17,9 @@ use MrPunyapal\TelescopeInspect\InspectionResult;
 final class IssueChecks
 {
     /**
-     * The canonical checks and the type flag that drills into each.
+     * The canonical checks and the type flag that drills into each. This is
+     * the single home of the fail-on vocabulary: filter validation, summary
+     * computation and exit-code evaluation all read from here.
      *
      * @return array<string, string>
      */
@@ -27,6 +30,22 @@ final class IssueChecks
             'failed-jobs' => '--jobs',
             'slow-requests' => '--requests',
             'slow-queries' => '--queries',
+        ];
+    }
+
+    /**
+     * The entry type each check's evaluation is based on, so summaries can
+     * be computed for required types even when their flag was not selected.
+     *
+     * @return array<string, EntryType>
+     */
+    public static function checkedTypes(): array
+    {
+        return [
+            'exceptions' => EntryType::Exception,
+            'failed-jobs' => EntryType::Job,
+            'slow-requests' => EntryType::Request,
+            'slow-queries' => EntryType::Query,
         ];
     }
 
