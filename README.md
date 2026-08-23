@@ -78,7 +78,7 @@ Every type has a documented, stable set of normalized fields ([field reference](
 | Time window | `--last=15m` · `--from=2026-08-01` · `--to="2026-08-02 14:30"` |
 | Limit | `--limit=100` (across all selected types, newest first) |
 | Duration | `--min-duration=250` (milliseconds) |
-| Route | `--route="orders/*"` or `--route=OrderController@store` |
+| Route | `--route="*orders*"` or `--route=OrderController@store` (fnmatch against the stored URI such as `/orders`, or substring) |
 | HTTP | `--method=GET,POST` · `--status=500,404` |
 | Queue | `--failed` · `--connection=redis` |
 | Free-text | `--search=checkout` (matches tags or content) |
@@ -95,7 +95,7 @@ php artisan telescope:inspect --http --status=500 --method=POST --last=6h
 php artisan telescope:inspect --show=9d1f8a0e-1c2b-3d4e-5f60-7a8b9c0d1e2f
 ```
 
-Prints every normalized field for that UUID. Add `--json` for structured consumption.
+Prints every normalized field for that UUID — sensitive fields require `--full`. Add `--json` for structured consumption.
 
 ### Analysis
 

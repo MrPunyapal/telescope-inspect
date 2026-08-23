@@ -1,13 +1,13 @@
 # Analysis
 
-Raw rows are rarely the answer. Telescope Inspect summarizes each analyzable type on top of the filtered window, bounded by `analysis_max_rows` (default 5000 most recent matching entries).
+Raw rows are rarely the answer. Telescope Inspect summarizes each analyzable type on top of the filtered window, bounded by `scan_limit` (default 5000 most recent matching entries).
 
 ## Requests
 
 - Average and P95 duration across the window
 - Status code distribution
-- Per-route table (top 10 by average duration): request count, avg, P95, status breakdown
-- **Average queries per route** — attributed by joining query entries to their request's batch
+- Per-route table (top 10 by P95 duration): request count, avg, P95, status breakdown
+- **Average queries per route** — attributed by joining query entries to their request's flush batch
 - The single slowest request with its UUID (deep-dive it with `--show`)
 
 ## Queries
@@ -17,7 +17,7 @@ Raw rows are rarely the answer. Telescope Inspect summarizes each analyzable typ
 - Most time-consuming query patterns — identical SQL grouped by hash with execution counts and total time
 - **Likely N+1**: identical SQL repeated many times within a single request batch
 
-N+1 detection is explicitly a heuristic; the package reports *"likely"*, never certainty. A pattern is flagged when one normalized SQL statement executes ≥10 times (configurable per analyzer) inside one request batch.
+N+1 detection is explicitly a heuristic; the package reports *"likely"*, never certainty. A pattern is flagged when one normalized SQL statement executes at least 10 times inside one request batch; each offending SQL pattern is reported once, attributed to its worst batch.
 
 ```text
 Likely N+1 (heuristic: identical SQL repeated within one request)
@@ -39,4 +39,4 @@ Executions  Avg ms  SQL                          Location
 
 ## How aggregation is scoped
 
-Analysis always respects your time window and runs over the **most recent matching entries** up to `analysis_max_rows` — so on a huge production table you still get fast, meaningful answers instead of an unbounded scan. Listing (`--limit`) is independent of analysis scope.
+Analysis always respects your time window and runs over the **most recent matching entries** up to `scan_limit` — so on a huge production table you still get fast, meaningful answers instead of an unbounded scan. Listing (`--limit`) is independent of analysis scope.

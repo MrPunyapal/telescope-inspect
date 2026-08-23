@@ -21,7 +21,7 @@ With no type flags you get an overview of entry counts per type, plus a hint abo
 | `--cache` | Cache hits / misses / writes / deletes |
 | `--dumps` | Variable dumps |
 | `--events` | Application events |
-| `--gate` | Gate and policy checks |
+| `--gates` | Gate and policy checks |
 | `--http` | Outgoing HTTP client requests |
 | `--logs` | Log messages |
 | `--mail` | Sent mailables |
@@ -54,7 +54,7 @@ Exactly one of these:
 | --- | --- |
 | `--limit=50` | Max entries shown across the selected types (default 50, max 10000) |
 | `--min-duration=500` | Entries with a duration ≥ 500 ms (requests, queries, redis, http) |
-| `--route=orders.*` | Request URI or controller action pattern (fnmatch or substring) |
+| `--route=*orders*` | Request URI or controller action pattern (fnmatch against the stored value such as `/orders`, or plain-text substring) |
 | `--method=GET,POST` | Comma-separated HTTP methods |
 | `--status=500,404` | Comma-separated HTTP status codes |
 | `--failed` | Only failed jobs (with `--jobs`) |
@@ -76,7 +76,7 @@ php artisan telescope:inspect --queries --search="orders" --connection=mysql
 php artisan telescope:inspect --show=9d1f8a0e-... 
 ```
 
-Prints every normalized field for that UUID. Pair with `--json` for machine consumption.
+Prints every normalized field for that UUID — sensitive fields require `--full`. Pair with `--json` for machine consumption.
 
 ## Output formats
 

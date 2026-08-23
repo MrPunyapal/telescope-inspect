@@ -85,3 +85,4 @@ Feed that straight into `jq`, a CI gate, an IDE extension, or your favorite agen
 - [JSON output contract](json-output.md)
 - [Analysis features](analysis.md)
 - [Configuration](configuration.md)
+- [Testing & contributing](testing-and-contributing.md)
