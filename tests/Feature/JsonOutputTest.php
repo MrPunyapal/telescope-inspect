@@ -49,6 +49,7 @@ it('emits a stable json envelope', function () {
         'schema_version',
         'command',
         'generated_at',
+        'agent',
         'filters',
         'summary',
         'violations',
@@ -59,6 +60,7 @@ it('emits a stable json envelope', function () {
         ->and($payload['generated_at'])->toBe('2026-08-22T12:00:00.000000Z')
         ->and($payload['summary']['total_entries_in_window'])->toBe(4)
         ->and($payload['violations'])->toBe([])
+        ->and($payload['agent'])->toBeNull()
         ->and($payload['summary']['scan'])->toBe(['limit' => 5000, 'truncated' => false])
         ->and($payload['summary']['analysis_scoped_to_filters'])->toBeFalse()
         ->and($payload['filters']['full'])->toBeFalse()

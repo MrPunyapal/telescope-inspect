@@ -21,6 +21,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Automatic JSON for AI agents
+    |--------------------------------------------------------------------------
+    |
+    | When the process appears to run under an AI coding agent (detected via
+    | laravel/agent-detector, e.g. Claude Code, Cursor, OpenCode), output
+    | switches to the JSON contract even without --json. Agents can always
+    | be forced back to tables with --human.
+    |
+    */
+
+    'auto_json_for_agents' => true,
+
+    /*
+    |--------------------------------------------------------------------------
     | Value limit
     |--------------------------------------------------------------------------
     |

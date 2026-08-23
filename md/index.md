@@ -27,6 +27,7 @@ Requests Â· showing 50 of 184 Â· last 1h
 - Watches live traffic with `--watch` and prints new entries as they arrive.
 - Manages monitored tags with `telescope:monitor` (list, add, remove).
 - Emits a versioned JSON envelope with `--json`, or one JSON object per line with `--ndjson`.
+- Detects AI coding agents (Claude Code, Cursor, OpenCode, ...) and returns JSON to them automatically; humans keep tables.
 - Exits non-zero on demand via `--fail-on` for CI pipelines.
 - Redacts fields that tend to contain sensitive values unless you ask for them.
 

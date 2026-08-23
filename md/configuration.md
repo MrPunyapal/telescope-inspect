@@ -15,6 +15,10 @@ return [
     // The --full flag overrides this at runtime.
     'redact_sensitive' => true,
 
+    // Switch to JSON automatically when an AI coding agent is detected
+    // (laravel/agent-detector). --human overrides this at runtime.
+    'auto_json_for_agents' => true,
+
     // Max characters for any string value in normalized output.
     'value_limit' => 1000,
 
@@ -31,6 +35,7 @@ return [
 ## Guidance
 
 - **redact_sensitive** — leave `true` everywhere except machines where dumping full payloads is acceptable. Prefer the runtime `--full` flag over a global off-switch.
+- **auto_json_for_agents** — keep `true` so agents that shell into the app get parseable JSON without special flags. Set it to `false` if you always want tables and rely on explicit `--json`.
 - **value_limit** — raise it if your team consumes JSON programmatically and wants complete SQL or messages; lower it if consumers are token-constrained (AI agents).
 - **scan_limit** — bounds both content-level filtering *and* per-type analysis aggregation (there is no separate analysis knob). Lower it on shared production machines; summaries remain representative because they always cover the most recent matching entries.
 - **slow_threshold_ms** — set it to what "slow" means for *your* app so CI gates read naturally.

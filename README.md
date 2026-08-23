@@ -143,6 +143,12 @@ php artisan telescope:monitor add --tag="App\Jobs\*"
 php artisan telescope:monitor remove --tag="App\Jobs\*"
 ```
 
+### AI agents
+
+If the command runs under an AI coding agent (Claude Code, Cursor, OpenCode, Codex, Copilot and others, detected with [laravel/agent-detector](https://github.com/MrPunyapal/laravel-agent-detector)), output switches to the JSON contract automatically, so an agent can run the same command a human would and still get parseable data. The envelope carries an `agent` key naming what was detected.
+
+Force human tables with `--human`, or disable the behavior entirely with the `auto_json_for_agents` config key.
+
 ### Exit codes
 
 | Code | Meaning |

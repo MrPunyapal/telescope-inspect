@@ -119,6 +119,7 @@ php artisan telescope:monitor remove --tag="SlowRequest"
 | `--json` | The JSON contract described in [json-output.md](json-output.md) |
 | `--ndjson` | One compact JSON object per line |
 | `--full` | Include sensitive values Telescope recorded |
+| `--human` | Force human output even when an AI agent is detected |
 
 ## CI gates
 
@@ -136,6 +137,12 @@ A practical CI recipe pairs a short window with the check so old failures do not
 ```bash
 php artisan telescope:inspect --fail-on=exceptions,failed-jobs --last=15m
 ```
+
+## AI agents
+
+When the process runs under an AI coding agent, output switches to the JSON contract automatically (detected with [laravel/agent-detector](https://github.com/MrPunyapal/laravel-agent-detector): Claude Code, Cursor, OpenCode, Codex, Copilot, and others). The envelope includes an `agent` key with the detected name.
+
+To force tables anyway, pass `--human`. To turn the behavior off completely, set `auto_json_for_agents` to `false` in the config file.
 
 ## Exit codes
 

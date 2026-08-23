@@ -38,6 +38,7 @@ php artisan telescope:inspect --requests --queries --exceptions --jobs --last=1h
 
 - **schema_version** — bump-major contract. Within `1.x`, existing fields keep their meaning; new fields may appear.
 - **generated_at** — UTC ISO 8601.
+- **agent** - name of the detected AI agent when JSON was auto-selected for it, otherwise `null`.
 - **filters** - exactly what you asked for plus the resolved UTC window. `batch_id` appears when `--batch` is used. `--show` is intentionally not echoed: it selects an entry directly.
 - **summary.total_entries_in_window** — total Telescope entries in the window across all types.
 - **summary.entries_by_type** — per-type counts (only types with entries).

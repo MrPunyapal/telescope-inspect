@@ -5,6 +5,7 @@ namespace MrPunyapal\TelescopeInspect\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
+use Laravel\AgentDetector\AgentDetector;
 use MrPunyapal\TelescopeInspect\Analysis\IssueChecks;
 use MrPunyapal\TelescopeInspect\Filters\InspectFilters;
 use MrPunyapal\TelescopeInspect\Filters\InvalidFilter;
@@ -64,6 +65,7 @@ class InspectCommand extends Command
                             {--search= : Match entry tags or raw content}
                             {--json : Output the machine-readable JSON contract}
                             {--ndjson : Output newline-delimited JSON items (requires a type flag or --show)}
+                            {--human : Force human-readable output even when an AI agent is detected}
                             {--full : Include sensitive values Telescope recorded — output may contain secrets}
                             {--fail-on= : Exit with code 3 when issues exist: exceptions,failed-jobs,slow-requests,slow-queries}';
 
@@ -138,7 +140,11 @@ HELP;
             return Command::INVALID;
         }
 
-        if ($this->option('ndjson') && ! $filters->hasTypeSelection() && $filters->showUuid === null) {
+        // AI agents get the JSON contract by default so they never have to
+        // scrape human tables. Explicit flags and --human always win.
+        $format = $this->resolveOutputFormat();
+
+        if ($format->isNdjson && ! $filters->hasTypeSelection() && $filters->showUuid === null) {
             $this->components->error('--ndjson requires at least one type flag or --show=<uuid>.');
 
             return Command::INVALID;
@@ -151,12 +157,12 @@ HELP;
                 return Command::INVALID;
             }
 
-            return $this->watch($repository, $filters);
+            return $this->watch($repository, $filters, $format);
         }
 
         $result = $inspector->inspect($filters);
 
-        if ($filters->showUuid !== null && $result->singleEntry === null && ! $this->option('json')) {
+        if ($filters->showUuid !== null && $result->singleEntry === null && ! $format->isJson) {
             $this->components->error("No Telescope entry found for UUID [{$filters->showUuid}].");
 
             return Command::FAILURE;
@@ -164,7 +170,7 @@ HELP;
 
         // Machine modes emit data only; diagnostics would corrupt piped
         // output, so they run exclusively for human rendering.
-        if (! $this->option('json') && ! $this->option('ndjson')) {
+        if (! $format->isJson && ! $format->isNdjson) {
             if ($filters->search !== null && $filters->timeRange?->from === null) {
                 $this->components->warn('--search without a time window scans recent rows; add --last=... on large tables.');
             }
@@ -176,15 +182,43 @@ HELP;
 
         $violations = IssueChecks::violations($result, $this->slowThresholdFor($result));
 
-        if ($this->option('ndjson')) {
+        if ($format->isNdjson) {
             return $this->emitNdjson($result, $violations);
         }
 
-        if ($this->option('json')) {
-            return $this->emitJson($result, $violations);
+        if ($format->isJson) {
+            return $this->emitJson($result, $violations, $format->agentName);
         }
 
         return $this->renderForHumans($result, $violations);
+    }
+
+    /**
+     * Resolve the effective output format.
+     *
+     * Explicit --json/--ndjson win. Otherwise, when the process appears to
+     * be running under an AI coding agent (per laravel/agent-detector) and
+     * auto switching is enabled in config, the JSON contract is returned so
+     * agents never have to parse human tables. --human forces tables back.
+     */
+    private function resolveOutputFormat(): OutputFormat
+    {
+        $wantsJson = (bool) $this->option('json');
+        $wantsNdjson = (bool) $this->option('ndjson');
+
+        if ($wantsJson || $wantsNdjson || $this->option('human')) {
+            return new OutputFormat($wantsJson, $wantsNdjson);
+        }
+
+        if ((bool) config('telescope-inspect.auto_json_for_agents', true)) {
+            $detected = AgentDetector::detect();
+
+            if ($detected->isAgent) {
+                return new OutputFormat(isJson: true, isNdjson: false, agentName: $detected->name);
+            }
+        }
+
+        return new OutputFormat(false, false);
     }
 
     /**
@@ -229,12 +263,13 @@ HELP;
     /**
      * @param  list<string>  $violations
      */
-    private function emitJson(InspectionResult $result, array $violations): int
+    private function emitJson(InspectionResult $result, array $violations, ?string $agentName = null): int
     {
         $presenter = new JsonPresenter(
             ndjson: false,
             redactSensitive: ! $result->filters->includeSensitiveValues,
             violations: $violations,
+            agentName: $agentName,
         );
 
         // stdout carries only the document; violations are structured inside it.
@@ -278,11 +313,11 @@ HELP;
      * Starts from the current high-water mark so only fresh traffic prints.
      * Runs until the process is interrupted.
      */
-    private function watch(EntryRepository $repository, InspectFilters $filters): int
+    private function watch(EntryRepository $repository, InspectFilters $filters, OutputFormat $format): int
     {
         $interval = max(1, (int) ((string) ($this->option('watch') ?: 2)));
 
-        $machine = $this->option('ndjson');
+        $machine = $format->isNdjson || $format->isJson;
         $sequence = $repository->latestSequence();
 
         $this->components->info(sprintf(

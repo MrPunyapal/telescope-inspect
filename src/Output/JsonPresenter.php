@@ -25,6 +25,8 @@ final class JsonPresenter
         private readonly bool $redactSensitive = true,
         /** @var list<string> */
         private readonly array $violations = [],
+        /** Set when the JSON was auto-selected for a detected AI agent. */
+        private readonly ?string $agentName = null,
     ) {}
 
     /**
@@ -49,6 +51,7 @@ final class JsonPresenter
             'schema_version' => self::SCHEMA_VERSION,
             'command' => 'telescope:inspect',
             'generated_at' => $result->generatedAt->copy()->utc()->toISOString(),
+            'agent' => $this->agentName,
             'filters' => $result->filters->toArray(),
             'summary' => $this->summary($result),
             'violations' => $this->violations,
@@ -69,6 +72,7 @@ final class JsonPresenter
             'schema_version' => self::SCHEMA_VERSION,
             'command' => 'telescope:inspect',
             'generated_at' => $result->generatedAt->copy()->utc()->toISOString(),
+            'agent' => $this->agentName,
             'filters' => $result->filters->toArray(),
             'summary' => $this->summary($result),
             'entry' => $result->singleEntry === null ? null : $this->redact($result->singleEntry),
