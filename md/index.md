@@ -85,5 +85,6 @@ The full contract is documented in [json-output.md](json-output.md).
 - [Usage & filters](usage.md)
 - [JSON output contract](json-output.md)
 - [Analysis features](analysis.md)
+- [Architecture](architecture.md)
 - [Configuration](configuration.md)
 - [Testing & contributing](testing-and-contributing.md)

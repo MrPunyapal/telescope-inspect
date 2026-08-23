@@ -4,6 +4,10 @@
 [![Total Downloads](https://img.shields.io/packagist/dt/mrpunyapal/telescope-inspect.svg?style=flat-square)](https://packagist.org/packages/mrpunyapal/telescope-inspect)
 [![CI](https://github.com/MrPunyapal/telescope-inspect/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/MrPunyapal/telescope-inspect/actions/workflows/tests.yml)
 [![License](https://img.shields.io/packagist/l/mrpunyapal/telescope-inspect.svg?style=flat-square)](https://packagist.org/packages/mrpunyapal/telescope-inspect)
+[![PHP](https://img.shields.io/badge/PHP-%5E8.3-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/supported-versions.php)
+[![Laravel](https://img.shields.io/badge/Laravel-11%20%7C%2012%20%7C%2013-FF2D20?style=flat-square&logo=laravel&logoColor=white)](https://laravel.com/docs/releases)
+[![Telescope](https://img.shields.io/badge/Telescope-%5E5.0-F5308D?style=flat-square)](https://laravel.com/docs/telescope)
+[![Laravel Boost](https://img.shields.io/badge/Laravel_Boost-compatible-8B5CF6?style=flat-square)](https://github.com/laravel/boost)
 
 Query Laravel Telescope data from the command line. It prints readable summaries for people and JSON for scripts, CI jobs, and other tools.
 
@@ -191,6 +195,8 @@ See [docs/configuration](https://mrpunyapal.github.io/telescope-inspect/configur
 | Laravel Telescope | ^5.0 |
 
 ## How it works
+
+A read-only pipeline over Telescope's own tables: bounded SQL fetch, content normalization, per-type analyzers, then presentation. Full reference in [docs/architecture](https://mrpunyapal.github.io/telescope-inspect/architecture).
 
 ```
 Telescope storage
