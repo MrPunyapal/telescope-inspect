@@ -100,18 +100,19 @@ it('truncates long values in tables', function () {
     expect(inspectHuman(['logs' => true]))->toContain('…');
 });
 
-it('shows full entry detail for show mode with redaction notice', function () {
+it('gates dump detail behind full mode with redaction notice', function () {
     $factory = telescopeFactory();
     $uuid = $factory->add('dump', entryUuid(), null, [
         'dump' => '<pre>secret-ish</pre>',
     ]);
     $factory->persist();
 
+    // Dumped variables can contain anything, so they stay hidden by default.
     $output = inspectHuman(['show' => $uuid]);
 
     expect($output)->toContain('Telescope Entry')
-        ->toContain('secret-ish')
-        ->toContain('redacted by default');
+        ->and($output)->not->toContain('secret-ish')
+        ->and(inspectHuman(['show' => $uuid, 'full' => true]))->toContain('secret-ish');
 });
 
 it('hides sensitive fields in detail view until full is requested', function () {

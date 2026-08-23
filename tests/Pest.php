@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Testing\PendingCommand;
@@ -64,4 +65,44 @@ function inspect(array $options = []): PendingCommand
 function entryUuid(): string
 {
     return (string) Str::uuid();
+}
+
+/**
+ * Run the command in human mode and capture the rendered output.
+ *
+ * @param  array<string, bool|int|string|null>  $options
+ */
+function humanOutput(array $options = []): string
+{
+    Artisan::call('telescope:inspect', collect($options)
+        ->mapWithKeys(fn ($value, $key): array => ['--'.$key => $value])
+        ->filter()
+        ->all());
+
+    return Artisan::output();
+}
+
+/**
+ * Run the inspect command with --json and return [exit code, decoded envelope].
+ *
+ * @param  array<string, bool|int|string|null>  $options
+ * @return array{0: int, 1: array<string, mixed>}
+ */
+function inspectJsonWithExit(array $options = []): array
+{
+    $exit = Artisan::call('telescope:inspect', collect(array_merge(['json' => true], $options))
+        ->mapWithKeys(fn ($value, $key): array => ['--'.$key => $value])
+        ->filter()
+        ->all());
+
+    $raw = trim(Artisan::output());
+
+    if ($raw === '') {
+        return [$exit, []];
+    }
+
+    /** @var array<string, mixed> $decoded */
+    $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+
+    return [$exit, $decoded];
 }

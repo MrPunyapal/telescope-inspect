@@ -78,7 +78,7 @@ it('selects gate checks with plural flags', function () {
 
 it('rejects using json and ndjson together', function () {
     inspect(['json' => true, 'ndjson' => true])
-        ->expectsOutputToContain('either --json or --ndjson')
+        ->expectsOutputToContain('--json and --ndjson cannot be combined')
         ->assertExitCode(2);
 });
 

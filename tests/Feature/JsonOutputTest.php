@@ -62,7 +62,7 @@ it('emits a stable json envelope', function () {
         ->and($payload['violations'])->toBe([])
         ->and($payload['agent'])->toBeNull()
         ->and($payload['summary']['scan'])->toBe(['limit' => 5000, 'truncated' => false])
-        ->and($payload['summary']['analysis_scoped_to_filters'])->toBeFalse()
+        ->and($payload['summary']['content_filters_present'])->toBeFalse()
         ->and($payload['filters']['full'])->toBeFalse()
         ->and($payload['filters']['fail_on'])->toBe([]);
 });
@@ -181,9 +181,15 @@ it('exposes the detailed single entry envelope for --show', function () {
     ]);
     $factory->persist();
 
-    $payload = inspectJson(['show' => $uuid]);
+    // Dump content is sensitive-gated: hidden by default...
+    $redacted = inspectJson(['show' => $uuid]);
 
-    expect($payload['entry']['type'])->toBe('dump')
-        ->and($payload['entry']['uuid'])->toBe($uuid)
-        ->and($payload['entry']['dump'])->toContain('hello');
+    expect($redacted['entry']['type'])->toBe('dump')
+        ->and($redacted['entry']['uuid'])->toBe($uuid)
+        ->and($redacted['entry'])->not->toHaveKey('dump');
+
+    // ...and present with --full.
+    $payload = inspectJson(['show' => $uuid, 'full' => true]);
+
+    expect($payload['entry']['dump'])->toContain('hello');
 });

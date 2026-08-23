@@ -125,10 +125,15 @@ it('normalizes every entry type without errors', function (EntryType $type) {
     EntryType::all(),
 ));
 
-it('strips html from dumps', function () {
-    $fields = normalizer()->normalize(EntryType::Dump, [
-        'dump' => "<pre class='sf-dump'>array:1 [<span>\"key\"</span> => \"value\"]</pre>",
-    ]);
+it('gates dump content behind sensitive values and strips html when included', function () {
+    $raw = "<pre class='sf-dump'>array:1 [<span>\"key\"</span> => \"value\"]</pre>";
+
+    // Dumped variables routinely contain secrets: hidden by default.
+    $redacted = normalizer()->normalize(EntryType::Dump, ['dump' => $raw]);
+
+    expect($redacted['dump'])->toBeNull();
+
+    $fields = normalizer()->normalize(EntryType::Dump, ['dump' => $raw], withSensitiveValues: true);
 
     expect($fields['dump'])->not->toContain('<pre')
         ->and($fields['dump'])->toContain('"key"');

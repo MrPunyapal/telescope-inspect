@@ -1,0 +1,464 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/MrPunyapal/telescope-inspect/schema/telescope-inspect-v1.json",
+    "title": "Telescope Inspect JSON contract v1",
+    "description": "The machine-readable output of `php artisan telescope:inspect --json` and `--ndjson`. Within schema version 1.x existing keys keep their meaning and location; new keys may appear. Sensitive fields are REMOVED (key absent) unless the run opted into sensitive values via --full or config; a field that Telescope never recorded is present as null when sensitive values are enabled.",
+    "type": "object",
+    "oneOf": [
+        {
+            "$ref": "#/$defs/listingEnvelope"
+        },
+        {
+            "$ref": "#/$defs/singleEntryEnvelope"
+        },
+        {
+            "$ref": "#/$defs/item"
+        }
+    ],
+    "$defs": {
+        "isoUtc": {
+            "description": "UTC timestamp in ISO-8601 with microsecond precision, e.g. 2026-08-23T16:18:04.222803Z.",
+            "type": ["string", "null"],
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+        },
+        "durationMs": {
+            "description": "Duration in milliseconds. Integers for request totals, floats (2 decimal places) elsewhere.",
+            "type": ["number", "null"]
+        },
+        "entryType": {
+            "enum": [
+                "request", "query", "exception", "job", "command", "schedule",
+                "cache", "dump", "event", "gate", "client_request", "log",
+                "mail", "model", "notification", "redis", "view", "batch"
+            ]
+        },
+        "listingEnvelope": {
+            "type": "object",
+            "required": ["schema_version", "command", "generated_at", "agent", "filters", "summary", "violations", "items"],
+            "properties": {
+                "schema_version": { "const": "1.0" },
+                "command": { "const": "telescope:inspect" },
+                "generated_at": { "$ref": "#/$defs/isoUtc" },
+                "agent": {
+                    "description": "Name of the detected AI agent when JSON was auto-selected for it; null otherwise.",
+                    "type": ["string", "null"]
+                },
+                "filters": { "$ref": "#/$defs/filters" },
+                "summary": { "$ref": "#/$defs/summary" },
+                "violations": {
+                    "description": "--fail-on checks that matched, in canonical order. Non-empty implies exit code 3.",
+                    "type": "array",
+                    "items": {
+                        "enum": ["exceptions", "failed-jobs", "slow-requests", "slow-queries"]
+                    }
+                },
+                "items": {
+                    "description": "Entries grouped by selected type in the canonical order of the type flags; newest first within each group.",
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/item" }
+                }
+            }
+        },
+        "singleEntryEnvelope": {
+            "description": "Emitted for --show=<uuid>. Note: this envelope has no violations key. A missing UUID exits 1 with an error on stderr and no document at all.",
+            "type": "object",
+            "required": ["schema_version", "command", "generated_at", "agent", "filters", "summary", "entry"],
+            "properties": {
+                "schema_version": { "const": "1.0" },
+                "command": { "const": "telescope:inspect" },
+                "generated_at": { "$ref": "#/$defs/isoUtc" },
+                "agent": { "type": ["string", "null"] },
+                "filters": { "$ref": "#/$defs/filters" },
+                "summary": { "$ref": "#/$defs/summary" },
+                "entry": {
+                    "oneOf": [
+                        { "$ref": "#/$defs/item" },
+                        { "type": "null" }
+                    ]
+                }
+            }
+        },
+        "filters": {
+            "description": "Echo of the effective run configuration. show_uuid is intentionally not echoed.",
+            "type": "object",
+            "required": [
+                "types", "last", "from", "to", "resolved_window_utc", "limit",
+                "min_duration_ms", "route", "methods", "statuses",
+                "failed_jobs_only", "connection", "search", "batch_id",
+                "full", "fail_on"
+            ],
+            "properties": {
+                "types": {
+                    "description": "Selected entry type values in canonical order; empty means overview mode.",
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/entryType" }
+                },
+                "last": {
+                    "description": "Raw --last value exactly as provided.",
+                    "type": ["string", "null"]
+                },
+                "from": { "type": ["string", "null"] },
+                "to": { "type": ["string", "null"] },
+                "resolved_window_utc": {
+                    "description": "The parsed window boundaries in UTC; null sides are open-ended.",
+                    "type": "object",
+                    "required": ["from", "to"],
+                    "properties": {
+                        "from": { "$ref": "#/$defs/isoUtc" },
+                        "to": { "$ref": "#/$defs/isoUtc" }
+                    }
+                },
+                "limit": { "type": "integer", "minimum": 1, "maximum": 10000 },
+                "min_duration_ms": { "type": ["number", "null"], "minimum": 0 },
+                "route": { "type": ["string", "null"] },
+                "methods": {
+                    "type": "array",
+                    "items": { "enum": ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] }
+                },
+                "statuses": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 100 }
+                },
+                "failed_jobs_only": { "type": "boolean" },
+                "connection": { "type": ["string", "null"] },
+                "search": { "type": ["string", "null"] },
+                "batch_id": { "type": ["string", "null"] },
+                "full": {
+                    "description": "True when sensitive fields are INCLUDED. When false, every sensitive field listed in the per-type schemas is removed from items entirely.",
+                    "type": "boolean"
+                },
+                "fail_on": {
+                    "type": "array",
+                    "items": { "enum": ["exceptions", "failed-jobs", "slow-requests", "slow-queries"] }
+                }
+            }
+        },
+        "summary": {
+            "type": "object",
+            "required": [
+                "total_entries_in_window", "entries_by_type", "items_returned",
+                "analysis", "content_filters_present", "scan"
+            ],
+            "properties": {
+                "total_entries_in_window": {
+                    "description": "Exact COUNT(*) across ALL entry types in the time window (not limited to selected flags, not bounded by scan_limit). In --batch mode it is the number of entries in the batch. In --show mode it is 0 because no window aggregate is computed.",
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "entries_by_type": {
+                    "description": "Exact per-type counts within the window; only non-zero counts appear.",
+                    "type": "object",
+                    "additionalProperties": { "type": "integer", "minimum": 0 }
+                },
+                "items_returned": {
+                    "description": "How many entries were actually returned per selected type.",
+                    "type": "object",
+                    "additionalProperties": { "type": "integer", "minimum": 0 }
+                },
+                "analysis": {
+                    "description": "Per-type analysis summaries. Present for requests, queries, exceptions and jobs with entries in scope (plus types required by --fail-on). Aggregates are computed over the newest rows up to scan_limit; compare *_analyzed / rows_scanned against entries_by_type[type] to detect partial coverage.",
+                    "type": "object",
+                    "propertyNames": { "$ref": "#/$defs/entryType" },
+                    "additionalProperties": { "type": "object" }
+                },
+                "content_filters_present": {
+                    "description": "Whether any content-level filter (--min-duration, --route, --method, --status, --failed, --connection, --search) was supplied. Analysis always covers the whole window regardless of these filters.",
+                    "type": "boolean"
+                },
+                "scan": { "$ref": "#/$defs/scan" }
+            }
+        },
+        "scan": {
+            "description": "Provenance for the listing fetch. Analyzer walks are separately capped by scan_limit and expose their own rows_scanned counters.",
+            "type": "object",
+            "required": ["limit", "truncated"],
+            "properties": {
+                "limit": {
+                    "description": "Effective scan ceiling after clamping config to 100..50000.",
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 50000
+                },
+                "truncated": {
+                    "description": "True when the newest-first listing hit its ceiling while more than limit entries matched - older matching entries were NOT considered. False guarantees the whole window for the selected types was examined.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "item": {
+            "description": "One normalized Telescope entry. Common keys plus per-type normalized fields; see oneOf branches. Fields marked [sensitive] are removed unless filters.full is true.",
+            "type": "object",
+            "required": ["uuid", "type", "batch_id", "created_at"],
+            "properties": {
+                "uuid": { "type": "string" },
+                "type": { "$ref": "#/$defs/entryType" },
+                "batch_id": {
+                    "description": "The flush batch id shared by every entry recorded during one request/job lifecycle.",
+                    "type": ["string", "null"]
+                },
+                "created_at": { "$ref": "#/$defs/isoUtc" }
+            },
+            "oneOf": [
+                { "$ref": "#/$defs/types/request" },
+                { "$ref": "#/$defs/types/query" },
+                { "$ref": "#/$defs/types/exception" },
+                { "$ref": "#/$defs/types/job" },
+                { "$ref": "#/$defs/types/command" },
+                { "$ref": "#/$defs/types/schedule" },
+                { "$ref": "#/$defs/types/cache" },
+                { "$ref": "#/$defs/types/dump" },
+                { "$ref": "#/$defs/types/event" },
+                { "$ref": "#/$defs/types/gate" },
+                { "$ref": "#/$defs/types/clientRequest" },
+                { "$ref": "#/$defs/types/log" },
+                { "$ref": "#/$defs/types/mail" },
+                { "$ref": "#/$defs/types/model" },
+                { "$ref": "#/$defs/types/notification" },
+                { "$ref": "#/$defs/types/redis" },
+                { "$ref": "#/$defs/types/view" },
+                { "$ref": "#/$defs/types/batch" }
+            ]
+        },
+        "gatedValue": {
+            "description": "[sensitive] Removed unless filters.full is true. When included: scalar or decoded JSON structure, strings truncated to value_limit chars, oversized structures replaced by {_truncated: true, preview: string}.",
+            "type": ["string", "number", "boolean", "array", "object", "null"],
+            "additionalProperties": true
+        },
+        "types": {
+            "request": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "request" },
+                    "method": { "type": "string" },
+                    "uri": { "description": "URL path without scheme-host or query string.", "type": "string" },
+                    "query_string": { "$ref": "#/$defs/gatedValue" },
+                    "controller_action": { "type": ["string", "null"] },
+                    "middleware": { "type": "array", "items": { "type": "string" } },
+                    "response_status": { "type": ["integer", "null"] },
+                    "duration_ms": { "$ref": "#/$defs/durationMs" },
+                    "memory_mb": { "type": ["number", "null"] },
+                    "ip_address": { "type": ["string", "null"] },
+                    "headers": { "$ref": "#/$defs/gatedValue" },
+                    "payload": { "$ref": "#/$defs/gatedValue" },
+                    "session": { "$ref": "#/$defs/gatedValue" },
+                    "response": { "$ref": "#/$defs/gatedValue" },
+                    "response_headers": { "$ref": "#/$defs/gatedValue" }
+                }
+            },
+            "clientRequest": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "client_request" },
+                    "method": { "type": "string" },
+                    "uri": { "type": "string" },
+                    "query_string": { "$ref": "#/$defs/gatedValue" },
+                    "response_status": { "type": ["integer", "null"] },
+                    "duration_ms": { "$ref": "#/$defs/durationMs" },
+                    "headers": { "$ref": "#/$defs/gatedValue" },
+                    "payload": { "$ref": "#/$defs/gatedValue" },
+                    "response": { "$ref": "#/$defs/gatedValue" },
+                    "response_headers": { "$ref": "#/$defs/gatedValue" }
+                }
+            },
+            "query": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "query" },
+                    "sql": { "type": "string" },
+                    "connection": { "type": ["string", "null"] },
+                    "driver": { "type": ["string", "null"], "description": "Requires Telescope >= 5.12; null on earlier minors." },
+                    "duration_ms": { "$ref": "#/$defs/durationMs" },
+                    "slow": { "type": "boolean" },
+                    "file": { "type": ["string", "null"] },
+                    "line": { "type": ["integer", "null"] },
+                    "query_hash": { "type": ["string", "null"] },
+                    "bindings": { "$ref": "#/$defs/gatedValue", "description": "[sensitive] Always empty/null in practice: Telescope interpolates bindings into the recorded SQL." }
+                }
+            },
+            "exception": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "exception" },
+                    "class": { "type": "string" },
+                    "message": { "type": "string" },
+                    "file": { "type": ["string", "null"] },
+                    "line": { "type": ["integer", "null"] },
+                    "occurrences": {
+                        "description": "How many occurrences Telescope collapsed into this stored row (requires Telescope >= ~5.x merge behavior); null when unknown. Distinct from analysis.exception.*.occurrences which counts scanned rows.",
+                        "type": ["integer", "null"]
+                    },
+                    "context": { "$ref": "#/$defs/gatedValue" },
+                    "trace": { "$ref": "#/$defs/gatedValue" },
+                    "line_preview": { "$ref": "#/$defs/gatedValue" }
+                }
+            },
+            "job": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "job" },
+                    "name": { "type": "string" },
+                    "queue": { "type": ["string", "null"] },
+                    "connection": { "type": ["string", "null"] },
+                    "status": {
+                        "enum": ["pending", "processed", "failed"],
+                        "description": "Recorded dispatch-time status; later transitions update the row in place, so windows filter by dispatch time."
+                    },
+                    "tries": { "type": ["integer", "null"] },
+                    "timeout": { "type": ["integer", "null"] },
+                    "exception_message": { "type": ["string", "null"] },
+                    "data": { "$ref": "#/$defs/gatedValue" }
+                }
+            },
+            "command": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "command" },
+                    "command": { "type": "string" },
+                    "exit_code": { "type": ["integer", "null"] },
+                    "arguments": { "$ref": "#/$defs/gatedValue" },
+                    "options": { "$ref": "#/$defs/gatedValue" }
+                }
+            },
+            "schedule": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "schedule" },
+                    "command": { "type": "string" },
+                    "description": { "type": ["string", "null"] },
+                    "expression": { "type": ["string", "null"] },
+                    "timezone": { "type": ["string", "null"] },
+                    "user": { "type": ["string", "null"] },
+                    "output": { "$ref": "#/$defs/gatedValue" }
+                }
+            },
+            "cache": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "cache" },
+                    "operation": { "enum": ["hit", "set", "missed", "forget", ""] },
+                    "key": { "type": "string" },
+                    "expiration": { "type": ["string", "null"] },
+                    "value": { "$ref": "#/$defs/gatedValue" }
+                }
+            },
+            "dump": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "dump" },
+                    "dump": { "$ref": "#/$defs/gatedValue" },
+                    "entry_point_type": { "type": ["string", "null"] },
+                    "entry_point_uuid": { "type": ["string", "null"] }
+                }
+            },
+            "event": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "event" },
+                    "name": { "type": "string" },
+                    "listeners": { "type": "array", "items": { "type": "string" } },
+                    "broadcast": { "type": "boolean" },
+                    "payload": { "$ref": "#/$defs/gatedValue" }
+                }
+            },
+            "gate": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "gate" },
+                    "ability": { "type": "string" },
+                    "result": { "type": ["string", "null"] },
+                    "message": { "type": ["string", "null"] },
+                    "file": { "type": ["string", "null"] },
+                    "line": { "type": ["integer", "null"] },
+                    "arguments": { "$ref": "#/$defs/gatedValue" }
+                }
+            },
+            "log": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "log" },
+                    "level": { "type": "string" },
+                    "message": { "type": "string" },
+                    "context": { "$ref": "#/$defs/gatedValue" }
+                }
+            },
+            "mail": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "mail" },
+                    "mailable": { "type": ["string", "null"] },
+                    "subject": { "type": ["string", "null"] },
+                    "queued": { "type": "boolean" },
+                    "from": { "type": "array", "items": { "type": "string" } },
+                    "to": { "type": "array", "items": { "type": "string" } },
+                    "cc": { "type": "array", "items": { "type": "string" } },
+                    "bcc": { "type": "array", "items": { "type": "string" } },
+                    "reply_to": { "type": "array", "items": { "type": "string" } },
+                    "html": { "$ref": "#/$defs/gatedValue" },
+                    "raw": { "$ref": "#/$defs/gatedValue" }
+                }
+            },
+            "model": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "model" },
+                    "action": { "type": "string" },
+                    "model": { "type": "string" },
+                    "count": { "type": ["integer", "null"] },
+                    "changes": { "$ref": "#/$defs/gatedValue" }
+                }
+            },
+            "notification": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "notification" },
+                    "notification": { "type": "string" },
+                    "channel": { "type": ["string", "null"] },
+                    "queued": { "type": "boolean" },
+                    "notifiable": { "type": ["string", "null"] },
+                    "response": { "$ref": "#/$defs/gatedValue" }
+                }
+            },
+            "redis": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "redis" },
+                    "command": {
+                        "description": "Verb and first argument (usually the key) only; parameters are gated behind arguments.",
+                        "type": "string"
+                    },
+                    "arguments": { "$ref": "#/$defs/gatedValue" },
+                    "connection": { "type": ["string", "null"] },
+                    "duration_ms": { "$ref": "#/$defs/durationMs" }
+                }
+            },
+            "view": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "view" },
+                    "name": { "type": "string" },
+                    "path": { "type": ["string", "null"] },
+                    "shared_keys": { "type": "array", "items": { "type": "string" } },
+                    "composers": { "type": "array", "items": { "type": "string" } }
+                }
+            },
+            "batch": {
+                "type": "object",
+                "properties": {
+                    "type": { "const": "batch" },
+                    "name": { "type": ["string", "null"] },
+                    "total_jobs": { "type": ["integer", "null"] },
+                    "pending_jobs": { "type": ["integer", "null"] },
+                    "failed_jobs": { "type": ["integer", "null"] },
+                    "processed_jobs": { "type": ["integer", "null"] },
+                    "progress": { "type": ["number", "null"] },
+                    "queue": { "type": ["string", "null"] },
+                    "connection": { "type": ["string", "null"] },
+                    "allows_failures": { "type": "boolean" },
+                    "cancelled_at": { "type": ["string", "null"] },
+                    "finished_at": { "type": ["string", "null"] },
+                    "options": { "$ref": "#/$defs/gatedValue" }
+                }
+            }
+        }
+    }
+}
