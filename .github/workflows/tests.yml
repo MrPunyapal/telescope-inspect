@@ -35,6 +35,7 @@ jobs:
         exclude:
           - laravel: 13.*
             php: '8.2'
+
     name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.stability }} - ${{ matrix.os }}
 
     steps:
@@ -57,11 +58,34 @@ jobs:
       - name: List installed versions
         run: composer show | grep -E "laravel/framework|laravel/telescope|orchestra/testbench " || true
 
+      - name: Tests
+        run: vendor/bin/pest --no-coverage
+
+  checks:
+    runs-on: ubuntu-latest
+
+    name: Style & static analysis (locked)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, curl, libxml, mbstring, zip, fileinfo, sqlite, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies (locked)
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
       - name: Lint
         run: vendor/bin/pint --test
 
       - name: Static analysis
         run: vendor/bin/phpstan analyse --no-progress
-
-      - name: Tests
-        run: vendor/bin/pest --no-coverage
