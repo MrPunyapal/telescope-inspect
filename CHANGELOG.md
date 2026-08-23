@@ -7,12 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased](https://github.com/MrPunyapal/telescope-inspect/commits/main)
 
-### Added
-
-- `--batch=<id>` replays every entry recorded during one request or job lifecycle, chronologically.
-- `--watch[=seconds]` tails new entries as they arrive; pairs with `--ndjson` for streaming consumers.
-- `telescope:monitor` command to list, add, and remove Telescope monitored tags.
-- AI agent detection via `laravel/agent-detector`: when a command runs under an agent, output switches to JSON automatically (disable with `auto_json_for_agents`, override with `--human`). The envelope gains an `agent` key naming the detected agent.
+Nothing yet.
 
 ## 0.1.0 - 2026-08-23
 
@@ -27,5 +22,9 @@ Initial release.
 - Machine-readable output: versioned JSON envelope (`--json`) and newline-delimited items (`--ndjson`), sensitive-value redaction with `--full` opt-in.
 - CI-oriented exit codes with `--fail-on=exceptions,failed-jobs,slow-requests,slow-queries`.
 - Publishable configuration for redaction, truncation, scan bounds and the slow threshold.
+- `--batch=<id>` replays every entry recorded during one request or job lifecycle, chronologically.
+- `--watch[=seconds]` tails new entries as they arrive; pairs with `--ndjson` for streaming consumers.
+- `telescope:monitor` command to list, add, and remove Telescope monitored tags.
+- AI agent detection via `laravel/agent-detector`: when a command runs under an agent, output switches to JSON automatically (disable with `auto_json_for_agents`, override with `--human`). The envelope gains an `agent` key naming the detected agent.
 
 [Unreleased]: https://github.com/MrPunyapal/telescope-inspect/commits/main
