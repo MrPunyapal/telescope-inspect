@@ -93,7 +93,9 @@ final class JsonPresenter
                 ->map(fn ($entries): int => count($entries))
                 ->all(),
             'analysis' => $result->summariesByType,
-            'analysis_scoped_to_filters' => $result->filters->hasContentFilters(),
+            // Whether content filters were supplied; analysis itself always
+            // covers the newest rows of the whole window regardless.
+            'content_filters_present' => $result->filters->hasContentFilters(),
             'scan' => [
                 'limit' => $result->scanLimit,
                 'truncated' => $result->scanTruncated,

@@ -115,6 +115,30 @@ enum EntryType: string
     }
 
     /**
+     * Whether --min-duration can meaningfully filter this type.
+     */
+    public function supportsDurationFilter(): bool
+    {
+        return in_array($this, [self::Request, self::Query, self::Redis, self::HttpClientRequest], true);
+    }
+
+    /**
+     * Whether --method / --status / --route filters apply to this type.
+     */
+    public function supportsHttpFilters(): bool
+    {
+        return in_array($this, [self::Request, self::HttpClientRequest], true);
+    }
+
+    /**
+     * Whether the --connection filter applies to this type.
+     */
+    public function supportsConnectionFilter(): bool
+    {
+        return in_array($this, [self::Query, self::Job, self::Redis, self::Batch], true);
+    }
+
+    /**
      * One-line summary of a normalized entry, used by batch and watch output.
      *
      * @param  array<string, mixed>  $fields
@@ -188,7 +212,10 @@ enum EntryType: string
                 (string) ($fields['command'] ?? ''),
                 (string) ($fields['expression'] ?? '')
             ),
-            self::Dump => Str::limit((string) ($fields['dump'] ?? ''), 100),
+            // Dump content is gated behind --full; keep the line useful.
+            self::Dump => ($fields['dump'] ?? null) === null || $fields['dump'] === ''
+                ? '(dump content redacted)'
+                : Str::limit((string) $fields['dump'], 100),
             self::View => (string) ($fields['name'] ?? ''),
             self::Batch => sprintf('%s (%s jobs)', (string) ($fields['name'] ?? ''), (string) ($fields['total_jobs'] ?? '?')),
         });

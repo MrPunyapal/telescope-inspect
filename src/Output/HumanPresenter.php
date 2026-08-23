@@ -88,13 +88,17 @@ final class HumanPresenter
                 $entry->createdAt?->timezone(config('app.timezone'))->format('H:i:s') ?? '-',
                 $entry->type->label(),
                 $this->cell($entry->type->headline($entry->fields), 90),
-                $entry->uuid,
+                substr($entry->uuid, 0, 8).'…',
             ];
         }
 
         $this->output->table(['Time', 'Type', 'Summary', 'UUID'], $rows);
 
-        $this->output->text('<fg=gray>Chronological. Use --show=<uuid> for the full record of any entry.</>');
+        if ($result->scanTruncated) {
+            $this->output->text('<fg=gray>Note: replay capped at '.$result->scanLimit.' entries; older entries in this batch were not shown.</>');
+        }
+
+        $this->output->text('<fg=gray>Chronological. UUIDs are abbreviated; use --show=<full uuid> for any entry.</>');
     }
 
     /**
@@ -134,12 +138,12 @@ final class HumanPresenter
         $this->output->text('Tip: combine flags like --requests --queries --last=1h, add --json for machine-readable output.');
 
         $issues = collect([
-            'exceptions' => [$result->countsByType['exception'] ?? 0],
-            'failed jobs' => [($result->summariesByType['job']['failed']['total'] ?? 0)],
-        ])->filter(fn (array $counts): bool => $counts[0] > 0);
+            'exceptions' => $result->countsByType['exception'] ?? 0,
+            'failed jobs' => $result->failedJobsInWindow,
+        ])->filter(fn (int $count): bool => $count > 0);
 
         if ($issues->isNotEmpty()) {
-            $summary = $issues->map(fn (array $counts, string $label): string => "{$counts[0]} {$label}")->implode(' and ');
+            $summary = $issues->map(fn (int $count, string $label): string => "{$count} {$label}")->implode(' and ');
             $this->output->text("Tip: {$summary} recorded; try --exceptions --jobs --last=24h.");
         }
     }
@@ -161,7 +165,7 @@ final class HumanPresenter
         $this->output->section('Telescope Entry'.($type !== null ? ': '.$type->label() : ''));
 
         $rows = collect($this->flattenForDisplay($entry))
-            ->map(fn ($value, $key): array => [$key, (string) $value])
+            ->map(fn ($value, $key): array => [$key, $this->cell((string) $value)])
             ->values()
             ->all();
 
@@ -191,10 +195,14 @@ final class HumanPresenter
         ));
 
         if ($entries === []) {
-            $inWindow = $result->countsByType[$type->value] ?? 0;
+            if ($result->filters->hasContentFilters()) {
+                $this->output->text("{$type->label()} exist in the window but none match the given filters. Relax --min-duration, --route, --status, or the other content filters.");
+
+                return;
+            }
 
             if ($inWindow > 0) {
-                $this->output->text("{$type->label()} exist in the window but none are among the newest {$result->filters->limit} entries. Raise --limit, or narrow with filters.");
+                $this->output->text("{$type->label()} exist in the window but none are among the newest {$result->filters->limit} entries. Raise --limit to see more.");
 
                 return;
             }
@@ -212,7 +220,7 @@ final class HumanPresenter
 
         match ($type) {
             EntryType::Request => $this->renderRequestSummary($summary, $entries),
-            EntryType::Query => $this->renderQuerySummary($summary),
+            EntryType::Query => $this->renderQuerySummary($summary, $entries),
             EntryType::Exception => $this->renderExceptionSummary($summary),
             EntryType::Job => $this->renderJobSummary($summary),
             default => $this->renderGenericTable($type, $entries),
@@ -265,19 +273,18 @@ final class HumanPresenter
 
     /**
      * @param  array<string, mixed>|null  $summary
+     * @param  list<NormalizedEntry>  $entries
      */
-    private function renderQuerySummary(?array $summary): void
+    private function renderQuerySummary(?array $summary, array $entries): void
     {
-        if ($summary === null) {
-            return;
+        if ($summary !== null) {
+            $this->output->text(sprintf(
+                '%s queries analyzed · total %s · avg %s',
+                number_format((int) $summary['queries_analyzed']),
+                Duration::milliseconds($summary['total_duration_ms'] ?? null),
+                Duration::milliseconds($summary['avg_duration_ms'] ?? null),
+            ));
         }
-
-        $this->output->text(sprintf(
-            '%s queries analyzed · total %s · avg %s',
-            number_format((int) $summary['queries_analyzed']),
-            Duration::milliseconds($summary['total_duration_ms'] ?? null),
-            Duration::milliseconds($summary['avg_duration_ms'] ?? null),
-        ));
 
         $slowest = (array) ($summary['slowest'] ?? []);
 
@@ -287,7 +294,7 @@ final class HumanPresenter
                 ['ms', 'Connection', 'SQL', 'Location'],
                 collect($slowest)->map(fn (array $query): array => [
                     (string) $query['duration_ms'],
-                    (string) ($query['connection'] ?? '-'),
+                    $this->cell((string) ($query['connection'] ?? '-'), 12),
                     $this->cell((string) $query['sql'], 34),
                     $this->location($query['file'], $query['line'], 22),
                 ])->all(),
@@ -323,6 +330,54 @@ final class HumanPresenter
                 ])->all(),
             );
         }
+
+        // The per-entry listing stays visible even when a summary is shown,
+        // so duplicates can be read in context and any row can be opened
+        // with --show. SQL repeated on this page carries a ×N marker.
+        if ($entries !== []) {
+            $counts = $this->queryRepetitionCounts($entries);
+            $duplicates = max($counts) >= 2;
+
+            $this->output->text('<options=bold>Queries</>'.($duplicates ? ' <fg=gray>(×N marks SQL repeated on this page)</>' : ''));
+
+            $this->output->table(
+                ['ms', 'Connection', 'SQL', 'Location'],
+                collect($entries)->map(function (NormalizedEntry $entry) use ($counts): array {
+                    $hash = (string) ($entry->field('query_hash') ?: md5((string) $entry->field('sql', '')));
+                    $repeats = $counts[$hash] ?? 1;
+                    // Truncate first, then badge, so repetition stays
+                    // visible even on long statements.
+                    $sql = $repeats > 1
+                        ? $this->cell((string) $entry->field('sql', ''), 30)." ×{$repeats}"
+                        : $this->cell((string) $entry->field('sql', ''), 34);
+
+                    return [
+                        Duration::milliseconds($entry->field('duration_ms')),
+                        $this->cell((string) ($entry->field('connection') ?? '-'), 12),
+                        $sql,
+                        $this->location($entry->field('file'), $entry->field('line'), 22),
+                    ];
+                })->all(),
+            );
+        }
+    }
+
+    /**
+     * How many times each query pattern appears among the listed entries.
+     *
+     * @param  list<NormalizedEntry>  $entries
+     * @return array<string, int>
+     */
+    private function queryRepetitionCounts(array $entries): array
+    {
+        $counts = [];
+
+        foreach ($entries as $entry) {
+            $hash = (string) ($entry->field('query_hash') ?: md5((string) $entry->field('sql', '')));
+            $counts[$hash] = ($counts[$hash] ?? 0) + 1;
+        }
+
+        return $counts;
     }
 
     /**
@@ -481,10 +536,15 @@ final class HumanPresenter
 
     /**
      * Truncate a value for table display.
+     *
+     * Newlines are flattened (all platform variants) and Symfony style tags
+     * in recorded content are neutralized so entry data can never restyle
+     * or spoof terminal output.
      */
     private function cell(string $value, int $width = self::CELL_WIDTH): string
     {
-        $value = str_replace(PHP_EOL, ' ', $value);
+        $value = str_replace(["\r\n", "\n", "\r"], ' ', $value);
+        $value = str_replace('<', '<<', $value);
 
         return mb_strlen($value) <= $width ? $value : mb_substr($value, 0, max(1, $width - 1)).'…';
     }

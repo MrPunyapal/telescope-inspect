@@ -29,11 +29,14 @@ final class ContentNormalizer
         'changes',
         'context',
         'data',
+        'dump',
         'headers',
         'html',
         'line_preview',
         'options',
+        'output',
         'payload',
+        'query_string',
         'raw',
         'response',
         'response_headers',
@@ -96,9 +99,15 @@ final class ContentNormalizer
      */
     private function request(array $content): array
     {
+        [$uri, $queryString] = self::splitUri($this->text(Arr::get($content, 'uri')));
+
         return [
             'method' => $this->text(Arr::get($content, 'method')),
-            'uri' => $this->text(Arr::get($content, 'uri')),
+            // Path only by default; query strings routinely carry tokens,
+            // reset links, and OAuth codes. The string itself moves behind
+            // the sensitive gate as query_string.
+            'uri' => $uri,
+            'query_string' => $this->sensitive($queryString),
             'controller_action' => $this->nullableText(Arr::get($content, 'controller_action')),
             'middleware' => $this->list(Arr::get($content, 'middleware')),
             'response_status' => $this->intOrNull(Arr::get($content, 'response_status')),
@@ -114,14 +123,41 @@ final class ContentNormalizer
     }
 
     /**
+     * Split a stored URL into its path and query string.
+     *
+     * @return array{0: string, 1: ?string}
+     */
+    private static function splitUri(string $uri): array
+    {
+        $path = $uri;
+        $query = null;
+
+        $queryStart = mb_strpos($uri, '?');
+
+        if ($queryStart !== false) {
+            $path = mb_substr($uri, 0, $queryStart);
+            $query = mb_substr($uri, $queryStart + 1);
+
+            if ($query === '') {
+                $query = null;
+            }
+        }
+
+        return [$path, $query];
+    }
+
+    /**
      * @param  array<string, mixed>  $content
      * @return array<string, mixed>
      */
     private function httpClientRequest(array $content): array
     {
+        [$uri, $queryString] = self::splitUri($this->text(Arr::get($content, 'uri')));
+
         return [
             'method' => $this->text(Arr::get($content, 'method')),
-            'uri' => $this->text(Arr::get($content, 'uri')),
+            'uri' => $uri,
+            'query_string' => $this->sensitive($queryString),
             'response_status' => $this->intOrNull(Arr::get($content, 'response_status')),
             'duration_ms' => $this->floatOrNull(Arr::get($content, 'duration')),
             'headers' => $this->sensitive(Arr::get($content, 'headers')),
@@ -146,6 +182,9 @@ final class ContentNormalizer
             'file' => $this->nullableText(Arr::get($content, 'file')),
             'line' => $this->intOrNull(Arr::get($content, 'line')),
             'query_hash' => $this->nullableText(Arr::get($content, 'hash')),
+            // Telescope interpolates bindings into the recorded SQL before
+            // storage, so this is always an empty list; kept as a reserved
+            // contract field.
             'bindings' => $this->sensitive(Arr::get($content, 'bindings')),
         ];
     }
@@ -161,6 +200,10 @@ final class ContentNormalizer
             'message' => $this->text(Arr::get($content, 'message')),
             'file' => $this->nullableText(Arr::get($content, 'file')),
             'line' => $this->intOrNull(Arr::get($content, 'line')),
+            // Telescope collapses repeated exceptions into one stored row
+            // and tracks how many occurrences it merged; surfaced so single
+            // entry views don't understate frequency.
+            'occurrences' => $this->intOrNull(Arr::get($content, 'occurrences')),
             'context' => $this->sensitive(Arr::get($content, 'context')),
             'trace' => $this->sensitive(Arr::get($content, 'trace')),
             'line_preview' => $this->sensitive(Arr::get($content, 'line_preview')),
@@ -214,7 +257,9 @@ final class ContentNormalizer
             'expression' => $this->nullableText(Arr::get($content, 'expression')),
             'timezone' => $this->nullableText(Arr::get($content, 'timezone')),
             'user' => $this->nullableText(Arr::get($content, 'user')),
-            'output' => $this->nullableText(Arr::get($content, 'output')),
+            // Task output can echo credentials (backup tools, sync jobs);
+            // gated behind --full like other free-form payloads.
+            'output' => $this->sensitive(Arr::get($content, 'output')),
         ];
     }
 
@@ -238,8 +283,14 @@ final class ContentNormalizer
      */
     private function dump(array $content): array
     {
+        // Dumps capture arbitrary var_dump output — routinely passwords,
+        // tokens, models — so the content is gated behind --full. The
+        // entry-point links Telescope attaches at flush time stay visible
+        // so a hidden dump can still be traced to its origin.
         return [
-            'dump' => $this->text(strip_tags((string) Arr::get($content, 'dump', ''))),
+            'dump' => $this->sensitive(strip_tags((string) Arr::get($content, 'dump', ''))),
+            'entry_point_type' => $this->nullableText(Arr::get($content, 'entry_point_type')),
+            'entry_point_uuid' => $this->nullableText(Arr::get($content, 'entry_point_uuid')),
         ];
     }
 
@@ -358,8 +409,21 @@ final class ContentNormalizer
      */
     private function redis(array $content): array
     {
+        // Telescope stores the full command with inline parameters
+        // ("SETEX otp:123 300 884213"); values written to Redis are a
+        // realistic secret channel, so only the verb and key stay visible
+        // by default and the remaining parameters move behind --full.
+        // Keys containing spaces split imperfectly; the full original
+        // command is always available under --full.
+        $command = (string) Arr::get($content, 'command', '');
+        $parts = explode(' ', ltrim($command), 3);
+        $verb = $parts[0] ?? '';
+        $key = $parts[1] ?? '';
+        $rest = $parts[2] ?? '';
+
         return [
-            'command' => $this->text(Arr::get($content, 'command')),
+            'command' => $this->text(trim($verb.' '.$key)),
+            'arguments' => $this->sensitive($rest === '' && count($parts) < 3 ? null : $rest),
             'connection' => $this->nullableText(Arr::get($content, 'connection')),
             'duration_ms' => $this->floatOrNull(Arr::get($content, 'time')),
         ];
@@ -445,9 +509,9 @@ final class ContentNormalizer
      */
     private function text(mixed $value): string
     {
-        $string = (is_scalar($value) || $value === null)
+        $string = is_scalar($value) || $value === null
             ? (string) $value
-            : ((string) json_encode($value));
+            : $this->encode($value);
 
         return $this->truncate($string);
     }
@@ -461,7 +525,7 @@ final class ContentNormalizer
             return null;
         }
 
-        $string = is_scalar($value) ? (string) $value : (string) json_encode($value);
+        $string = is_scalar($value) ? (string) $value : $this->encode($value);
 
         return $string === '' ? null : $this->truncate($string);
     }
@@ -479,7 +543,7 @@ final class ContentNormalizer
 
         return collect($value)
             ->map(fn ($item): string => $this->truncate(
-                is_scalar($item) ? (string) $item : (string) json_encode($item)
+                is_scalar($item) ? (string) $item : $this->encode($item)
             ))
             ->values()
             ->all();
@@ -498,17 +562,33 @@ final class ContentNormalizer
             return null;
         }
 
-        if ($value === null || is_scalar($value)) {
-            return $this->truncate((string) $value);
+        // Absent source data stays null so consumers can distinguish "the
+        // field was not recorded" from "an empty value was recorded".
+        if ($value === null) {
+            return null;
         }
 
-        $encoded = json_encode($value, JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (is_scalar($value)) {
+            $string = (string) $value;
 
-        if ($encoded !== false && mb_strlen($encoded) <= $this->valueLimit) {
+            return $string === '' ? null : $this->truncate($string);
+        }
+
+        $encoded = $this->encode($value);
+
+        if ($encoded !== '' && mb_strlen($encoded) <= $this->valueLimit) {
             return json_decode($encoded, true);
         }
 
-        return ['_truncated' => true, 'preview' => $this->truncate($encoded === false ? '' : $encoded)];
+        return ['_truncated' => true, 'preview' => $this->truncate($encoded)];
+    }
+
+    /**
+     * JSON-encode non-scalar values without losing malformed UTF-8.
+     */
+    private function encode(mixed $value): string
+    {
+        return (string) json_encode($value, JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
     private function intOrNull(mixed $value): ?int
