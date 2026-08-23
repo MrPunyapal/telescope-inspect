@@ -26,5 +26,6 @@ Initial release.
 - `--watch[=seconds]` tails new entries as they arrive; pairs with `--ndjson` for streaming consumers.
 - `telescope:monitor` command to list, add, and remove Telescope monitored tags.
 - AI agent detection via `laravel/agent-detector`: when a command runs under an agent, output switches to JSON automatically (disable with `auto_json_for_agents`, override with `--human`). The envelope gains an `agent` key naming the detected agent.
+- Laravel Boost skill (`resources/boost/skills/telescope-inspect`) so installed agents know how to drive the commands and read the JSON contract.
 
 [Unreleased]: https://github.com/MrPunyapal/telescope-inspect/commits/main

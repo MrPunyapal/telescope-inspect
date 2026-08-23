@@ -144,6 +144,8 @@ When the process runs under an AI coding agent, output switches to the JSON cont
 
 To force tables anyway, pass `--human`. To turn the behavior off completely, set `auto_json_for_agents` to `false` in the config file.
 
+A [Laravel Boost](https://laravel.com/docs/boost) skill ships with the package (`resources/boost/skills/telescope-inspect`). Running `php artisan boost:install` in a project that uses this package installs it, so connected agents know when to reach for these commands and how to read the output.
+
 ## Exit codes
 
 | Code | Meaning |

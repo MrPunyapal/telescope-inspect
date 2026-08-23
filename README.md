@@ -149,6 +149,10 @@ If the command runs under an AI coding agent (Claude Code, Cursor, OpenCode, Cod
 
 Force human tables with `--human`, or disable the behavior entirely with the `auto_json_for_agents` config key.
 
+### Laravel Boost
+
+The package ships a Boost skill (`resources/boost/skills/telescope-inspect`) that teaches agents when and how to use these commands, how to read the JSON envelope, and how to interpret the N+1 evidence. It installs automatically with `php artisan boost:install` in any Laravel project that has this package installed.
+
 ### Exit codes
 
 | Code | Meaning |
