@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased](https://github.com/MrPunyapal/telescope-inspect/commits/main/compare/v0.1.0...HEAD)
+## [Unreleased](https://github.com/MrPunyapal/telescope-inspect/commits/main/compare/v0.1.1...HEAD)
 
 Nothing yet.
 
@@ -30,16 +30,31 @@ Initial release.
 - AI agent detection via `laravel/agent-detector`: when a command runs under an agent, output switches to JSON automatically (disable with `auto_json_for_agents`, override with `--human`). The envelope gains an `agent` key naming the detected agent.
 - Laravel Boost skill (`resources/boost/skills/telescope-inspect`) so installed agents know how to drive the commands and read the JSON contract.
 
+## [v0.1.1](https://github.com/MrPunyapal/telescope-inspect/commits/main/compare/v0.1.0...v0.1.1) - 2026-08-23
+
+Initial usable release. Supersedes the briefly published v0.1.0 tag, which carried an incorrect PHP constraint.
+
+Same feature set as documented in the changelog:
+
+- telescope:inspect: overview, per-type listings, filters, --batch=<id> lifecycle replay, --watch live tail, --show=<uuid>
+
+- Analysis: slow routes with P95 and queries-per-request, repeated SQL patterns, likely N+1 evidence, exception signatures, job failure tracking
+- Output: human tables, versioned JSON envelope (--json), NDJSON (--ndjson), sensitive fields redacted unless --full
+- AI agents: automatic JSON via laravel/agent-detector, Laravel Boost skill included
+- CI gates: --fail-on with exit codes 0/1/2/3
+
+Requires PHP 8.3+, Laravel 11/12/13, Telescope ^5.0.
+
 ## [v0.1.0](https://github.com/MrPunyapal/telescope-inspect/commits/main/compare/main...v0.1.0) - 2026-08-23
 
 Initial release of Telescope Inspect.
 
 ### What you get
 
-\\ash
+\ash
 composer require --dev mrpunyapal/telescope-inspect
 php artisan telescope:inspect --requests --last=1h
-\\
+\
 
 ### Highlights
 
