@@ -3,13 +3,16 @@
 namespace MrPunyapal\TelescopeInspect\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
 use MrPunyapal\TelescopeInspect\Analysis\IssueChecks;
 use MrPunyapal\TelescopeInspect\Filters\InspectFilters;
 use MrPunyapal\TelescopeInspect\Filters\InvalidFilter;
 use MrPunyapal\TelescopeInspect\InspectionResult;
+use MrPunyapal\TelescopeInspect\Normalizers\ContentNormalizer;
 use MrPunyapal\TelescopeInspect\Output\HumanPresenter;
 use MrPunyapal\TelescopeInspect\Output\JsonPresenter;
+use MrPunyapal\TelescopeInspect\Query\EntryRepository;
 use MrPunyapal\TelescopeInspect\TelescopeInspector;
 use Throwable;
 
@@ -46,6 +49,8 @@ class InspectCommand extends Command
                             {--views : Inspect rendered views}
                             {--batches : Inspect job batches}
                             {--show= : Show full detail for a single entry UUID (ignores other filters)}
+                            {--batch= : Replay every entry recorded in one request or job lifecycle}
+                            {--watch= : Keep running and print new entries as they arrive; optional seconds between checks (default 2)}
                             {--last= : Only entries newer than this duration (e.g. 15m, 1h, 7d); default: all time}
                             {--from= : Window start date/time in the app timezone (e.g. "2026-08-01 14:30")}
                             {--to= : Window end date/time in the app timezone (e.g. "2026-08-02")}
@@ -94,6 +99,7 @@ HELP;
 
     public function handle(
         TelescopeInspector $inspector,
+        EntryRepository $repository,
     ): int {
         if (! $this->telescopeStorageExists()) {
             $this->components->error('Telescope storage tables not found.');
@@ -116,6 +122,14 @@ HELP;
             return Command::INVALID;
         }
 
+        $watchRequested = $this->option('watch') !== null;
+
+        if ($this->option('batch') !== null && $watchRequested) {
+            $this->components->error('--batch cannot be combined with --watch.');
+
+            return Command::INVALID;
+        }
+
         try {
             $filters = InspectFilters::fromOptions($this->options());
         } catch (InvalidFilter $error) {
@@ -128,6 +142,16 @@ HELP;
             $this->components->error('--ndjson requires at least one type flag or --show=<uuid>.');
 
             return Command::INVALID;
+        }
+
+        if ($watchRequested) {
+            if (! $filters->hasTypeSelection()) {
+                $this->components->error('--watch requires at least one type flag.');
+
+                return Command::INVALID;
+            }
+
+            return $this->watch($repository, $filters);
         }
 
         $result = $inspector->inspect($filters);
@@ -246,5 +270,51 @@ HELP;
     {
         return (float) ($result->filters->minDurationMs
             ?? config('telescope-inspect.slow_threshold_ms', 500));
+    }
+
+    /**
+     * Tail new entries as they are recorded (--watch[=seconds]).
+     *
+     * Starts from the current high-water mark so only fresh traffic prints.
+     * Runs until the process is interrupted.
+     */
+    private function watch(EntryRepository $repository, InspectFilters $filters): int
+    {
+        $interval = max(1, (int) ((string) ($this->option('watch') ?: 2)));
+
+        $machine = $this->option('ndjson');
+        $sequence = $repository->latestSequence();
+
+        $this->components->info(sprintf(
+            'Watching %s. New entries appear below; press Ctrl+C to stop.',
+            implode(', ', array_map(fn ($t) => $t->label(), $filters->types))
+        ));
+
+        for (; ;) {
+            foreach ($repository->findSinceSequence($sequence, $filters->types, 100) as $entry) {
+                $sequence = max($sequence, $entry->sequence ?? $sequence);
+
+                if ($machine) {
+                    $item = $entry->toArray();
+
+                    if (! $filters->includeSensitiveValues) {
+                        $item = Arr::except($item, ContentNormalizer::SENSITIVE_FIELDS);
+                    }
+
+                    $this->line((string) json_encode($item, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
+
+                    continue;
+                }
+
+                $this->line(sprintf(
+                    '%s  %-12s %s',
+                    $entry->createdAt?->timezone(config('app.timezone'))->format('H:i:s') ?? str_repeat(' ', 8),
+                    '<fg=cyan>'.$entry->type->label().'</>',
+                    $entry->type->headline($entry->fields)
+                ));
+            }
+
+            sleep($interval);
+        }
     }
 }

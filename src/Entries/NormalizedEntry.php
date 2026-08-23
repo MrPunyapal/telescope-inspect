@@ -23,6 +23,7 @@ final class NormalizedEntry
         public readonly ?Carbon $createdAt,
         public readonly array $fields = [],
         public readonly array $tags = [],
+        public readonly ?int $sequence = null,
     ) {}
 
     /**

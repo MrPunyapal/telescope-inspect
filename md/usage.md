@@ -82,6 +82,35 @@ php artisan telescope:inspect --show=<uuid>
 
 Prints every normalized field for that UUID. Sensitive fields require `--full`.
 
+## Replaying a request or job
+
+Every entry Telescope records during one request or job shares a batch id. Replay the whole lifecycle in recording order:
+
+```bash
+php artisan telescope:inspect --batch=<batch-id>
+```
+
+Batch mode ignores time windows and filters on purpose. Combine with `--json` to hand an agent or a teammate's script the complete story of one request.
+
+## Watching live traffic
+
+```bash
+php artisan telescope:inspect --requests --queries --watch
+php artisan telescope:inspect --exceptions --watch=5   # check every 5 seconds
+```
+
+The command starts from what is already stored and prints new entries as they arrive, one line each. Add `--ndjson` for machine-consumable lines. Press Ctrl+C to stop.
+
+## Managing monitored tags
+
+Monitored tags tell Telescope to keep entries that match them even when recording is paused:
+
+```bash
+php artisan telescope:monitor list
+php artisan telescope:monitor add --tag="App\Jobs\*" --tag="Auth:id:7"
+php artisan telescope:monitor remove --tag="SlowRequest"
+```
+
 ## Output formats
 
 | Flag | Behavior |

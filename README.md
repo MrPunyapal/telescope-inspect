@@ -79,6 +79,13 @@ php artisan telescope:inspect --show=<uuid>
 
 Prints every normalized field for one entry. Sensitive fields need `--full`.
 
+### Replaying and watching
+
+```bash
+php artisan telescope:inspect --batch=<batch-id>    # full lifecycle of one request
+php artisan telescope:inspect --exceptions --watch  # tail new exceptions live
+```
+
 ### Analysis
 
 Selecting requests, queries, exceptions, or jobs adds summaries:
@@ -124,6 +131,16 @@ There is also `--ndjson` for one compact JSON object per line, which is convenie
 
 ```bash
 php artisan telescope:inspect --queries --last=1h --ndjson | jq 'select(.duration_ms > 500)'
+```
+
+### Monitored tags
+
+Telescope keeps entries that carry a monitored tag even when recording is paused. Manage them from the CLI:
+
+```bash
+php artisan telescope:monitor list
+php artisan telescope:monitor add --tag="App\Jobs\*"
+php artisan telescope:monitor remove --tag="App\Jobs\*"
 ```
 
 ### Exit codes

@@ -142,6 +142,70 @@ final class EntryRepository
     }
 
     /**
+     * All entries that belong to one batch, in chronological order.
+     *
+     * A batch is everything Telescope recorded during one request or job
+     * lifecycle; the batch id is shown by --show and in every JSON item.
+     *
+     * @return list<NormalizedEntry>
+     */
+    public function getForBatch(string $batchId): array
+    {
+        $rows = EntryModel::query()
+            ->where('batch_id', $batchId)
+            ->orderBy('sequence')
+            ->get();
+
+        $entries = [];
+
+        foreach ($rows as $row) {
+            $entry = $this->hydrate($row->getAttributes(), includeSensitiveValues: true);
+
+            if ($entry !== null) {
+                $entries[] = $entry;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * Entries recorded after the given sequence id, used for --watch.
+     *
+     * @param  list<EntryType>  $types
+     * @return list<NormalizedEntry>
+     */
+    public function findSinceSequence(int $sequence, array $types, int $limit = 50): array
+    {
+        $rows = EntryModel::query()
+            ->whereIn('type', array_map(fn (EntryType $t): string => $t->value, $types))
+            ->where('sequence', '>', $sequence)
+            ->orderBy('sequence')
+            ->limit($limit)
+            ->get();
+
+        $entries = [];
+
+        foreach ($rows as $row) {
+            $entry = $this->hydrate($row->getAttributes());
+
+            if ($entry !== null) {
+                $entries[] = $entry;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * The highest sequence id currently stored, the starting point for --watch.
+     */
+    public function latestSequence(): int
+    {
+        return (int) (EntryModel::query()->max('sequence') ?? 0);
+    }
+
+    /**
      * Count query entries grouped by batch id, for the given batch ids.
      *
      * Used to attribute database work to the requests that caused it; all
@@ -339,6 +403,7 @@ final class EntryRepository
             createdAt: $createdAt,
             fields: $this->normalizer->normalize($type, $content, $includeSensitiveValues),
             tags: $tags,
+            sequence: isset($attributes['sequence']) ? (int) $attributes['sequence'] : null,
         );
     }
 }

@@ -2,6 +2,9 @@
 
 namespace MrPunyapal\TelescopeInspect\Entries;
 
+use Illuminate\Support\Str;
+use MrPunyapal\TelescopeInspect\Output\Duration;
+
 /**
  * The Telescope entry types this package can inspect.
  *
@@ -109,6 +112,86 @@ enum EntryType: string
             self::Schedule => 'schedule',
             self::View => 'views',
         };
+    }
+
+    /**
+     * One-line summary of a normalized entry, used by batch and watch output.
+     *
+     * @param  array<string, mixed>  $fields
+     */
+    public function headline(array $fields): string
+    {
+        return trim(match ($this) {
+            self::Request, self::HttpClientRequest => sprintf(
+                '%s %s %s%s',
+                (string) ($fields['method'] ?? ''),
+                Str::limit((string) ($fields['uri'] ?? ''), 70),
+                isset($fields['response_status']) ? (string) $fields['response_status'] : '',
+                isset($fields['duration_ms']) ? ' '.Duration::milliseconds($fields['duration_ms']) : ''
+            ),
+            self::Query => sprintf(
+                '%s [%s %s]',
+                Str::limit((string) ($fields['sql'] ?? ''), 80),
+                (string) ($fields['connection'] ?? '?'),
+                Duration::milliseconds($fields['duration_ms'] ?? null)
+            ),
+            self::Exception => sprintf(
+                '%s: %s',
+                (string) ($fields['class'] ?? ''),
+                Str::limit((string) ($fields['message'] ?? ''), 90)
+            ),
+            self::Job => sprintf(
+                '%s [%s] queue=%s',
+                (string) ($fields['name'] ?? ''),
+                (string) ($fields['status'] ?? ''),
+                (string) ($fields['queue'] ?? 'default')
+            ),
+            self::Command => sprintf(
+                '$ %s (exit %s)',
+                (string) ($fields['command'] ?? ''),
+                (string) ($fields['exit_code'] ?? '?')
+            ),
+            self::Cache => sprintf(
+                '%s %s',
+                (string) ($fields['operation'] ?? ''),
+                (string) ($fields['key'] ?? '')
+            ),
+            self::Log => sprintf(
+                '[%s] %s',
+                (string) ($fields['level'] ?? ''),
+                Str::limit((string) ($fields['message'] ?? ''), 90)
+            ),
+            self::Redis => sprintf(
+                '%s [%s]',
+                Str::limit((string) ($fields['command'] ?? ''), 80),
+                Duration::milliseconds($fields['duration_ms'] ?? null)
+            ),
+            self::Model => sprintf(
+                '%s %s',
+                (string) ($fields['action'] ?? ''),
+                (string) ($fields['model'] ?? '')
+            ),
+            self::Event => (string) ($fields['name'] ?? ''),
+            self::Gate => sprintf(
+                '%s -> %s',
+                (string) ($fields['ability'] ?? ''),
+                (string) ($fields['result'] ?? '')
+            ),
+            self::Mail => (string) ($fields['subject'] ?? '(no subject)'),
+            self::Notification => sprintf(
+                '%s via %s',
+                (string) ($fields['notification'] ?? ''),
+                (string) ($fields['channel'] ?? '?')
+            ),
+            self::Schedule => sprintf(
+                '%s [%s]',
+                (string) ($fields['command'] ?? ''),
+                (string) ($fields['expression'] ?? '')
+            ),
+            self::Dump => Str::limit((string) ($fields['dump'] ?? ''), 100),
+            self::View => (string) ($fields['name'] ?? ''),
+            self::Batch => sprintf('%s (%s jobs)', (string) ($fields['name'] ?? ''), (string) ($fields['total_jobs'] ?? '?')),
+        });
     }
 
     /**

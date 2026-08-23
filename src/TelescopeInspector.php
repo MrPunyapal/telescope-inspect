@@ -32,6 +32,10 @@ final class TelescopeInspector
      */
     public function inspect(InspectFilters $filters): InspectionResult
     {
+        if ($filters->batchId !== null) {
+            return $this->inspectBatch($filters);
+        }
+
         $countsByType = $this->repository->countsPerType($filters->timeRange)
             ->mapWithKeys(fn ($count, string $type): array => [$type => (int) $count])
             ->all();
@@ -71,6 +75,33 @@ final class TelescopeInspector
             itemsByType: $itemsByType,
             summariesByType: $summariesByType,
             scanTruncated: $this->repository->lastScanWasTruncated(),
+            scanLimit: $this->scanLimit(),
+        );
+    }
+
+    /**
+     * Replay one complete lifecycle: every entry that shares a batch id,
+     * in the order it was recorded.
+     */
+    private function inspectBatch(InspectFilters $filters): InspectionResult
+    {
+        $entries = $this->repository->getForBatch((string) $filters->batchId);
+
+        $itemsByType = [];
+        foreach ($entries as $entry) {
+            $itemsByType[$entry->type->value][] = $entry;
+        }
+
+        $countsByType = collect($itemsByType)
+            ->map(fn (array $items): int => count($items))
+            ->all();
+
+        return new InspectionResult(
+            filters: $filters,
+            generatedAt: now(),
+            totalInWindow: count($entries),
+            countsByType: $countsByType,
+            itemsByType: $itemsByType,
             scanLimit: $this->scanLimit(),
         );
     }

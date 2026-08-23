@@ -4,6 +4,7 @@ namespace MrPunyapal\TelescopeInspect;
 
 use Illuminate\Support\ServiceProvider;
 use MrPunyapal\TelescopeInspect\Commands\InspectCommand;
+use MrPunyapal\TelescopeInspect\Commands\MonitorCommand;
 use MrPunyapal\TelescopeInspect\Normalizers\ContentNormalizer;
 use MrPunyapal\TelescopeInspect\Query\EntryRepository;
 
@@ -38,6 +39,7 @@ class TelescopeInspectServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 InspectCommand::class,
+                MonitorCommand::class,
             ]);
 
             $this->publishes([

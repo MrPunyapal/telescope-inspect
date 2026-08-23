@@ -41,6 +41,12 @@ final class HumanPresenter
             return;
         }
 
+        if ($result->filters->batchId !== null) {
+            $this->renderBatch($result);
+
+            return;
+        }
+
         if (! $result->filters->hasTypeSelection()) {
             $this->renderOverview($result);
 
@@ -60,6 +66,35 @@ final class HumanPresenter
         if ($result->scanTruncated) {
             $this->output->text('<fg=gray>Note: the newest '.$result->scanLimit.' rows were scanned; older matching entries were not considered.</>');
         }
+    }
+
+    /**
+     * Chronological replay of one batch (--batch=<id>).
+     */
+    private function renderBatch(InspectionResult $result): void
+    {
+        $this->output->section('Telescope Batch '.(string) $result->filters->batchId);
+
+        if ($result->totalInWindow === 0) {
+            $this->output->warning('No entries found for this batch id.');
+
+            return;
+        }
+
+        $rows = [];
+
+        foreach ($result->items() as $entry) {
+            $rows[] = [
+                $entry->createdAt?->timezone(config('app.timezone'))->format('H:i:s') ?? '-',
+                $entry->type->label(),
+                $this->cell($entry->type->headline($entry->fields), 90),
+                $entry->uuid,
+            ];
+        }
+
+        $this->output->table(['Time', 'Type', 'Summary', 'UUID'], $rows);
+
+        $this->output->text('<fg=gray>Chronological. Use --show=<uuid> for the full record of any entry.</>');
     }
 
     /**

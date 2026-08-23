@@ -35,6 +35,7 @@ final class InspectFilters
         public readonly bool $onlyFailedJobs = false,
         public readonly ?string $connection = null,
         public readonly ?string $search = null,
+        public readonly ?string $batchId = null,
         public readonly ?string $showUuid = null,
         public readonly bool $includeSensitiveValues = false,
         public readonly array $failOn = [],
@@ -66,11 +67,13 @@ final class InspectFilters
             onlyFailedJobs: (bool) ($options['failed'] ?? false),
             connection: self::nullableString($options['connection'] ?? null),
             search: self::nullableString($options['search'] ?? null),
+            batchId: self::nullableString($options['batch'] ?? null),
             showUuid: self::nullableString($options['show'] ?? null),
             includeSensitiveValues: self::resolveIncludeSensitive($options['full'] ?? false),
             failOn: self::resolveFailOn($options['fail-on'] ?? null),
         );
 
+        $filters->validateBatchExclusivity();
         $filters->validateTypeCompatibility();
 
         return $filters;
@@ -125,9 +128,44 @@ final class InspectFilters
             'failed_jobs_only' => $this->onlyFailedJobs,
             'connection' => $this->connection,
             'search' => $this->search,
+            'batch_id' => $this->batchId,
             'full' => $this->includeSensitiveValues,
             'fail_on' => $this->failOn,
         ];
+    }
+
+    /**
+     * --batch replays one complete lifecycle, so narrowing filters do not apply.
+     *
+     * @throws InvalidFilter
+     */
+    private function validateBatchExclusivity(): void
+    {
+        if ($this->batchId === null) {
+            return;
+        }
+
+        $conflicts = collect([
+            '--requests' => (bool) ($this->types !== []),
+            '--last' => $this->lastRaw !== null,
+            '--from' => $this->fromRaw !== null,
+            '--to' => $this->toRaw !== null,
+            '--min-duration' => $this->minDurationMs !== null,
+            '--route' => $this->route !== null,
+            '--method' => $this->methods !== [],
+            '--status' => $this->statuses !== [],
+            '--failed' => $this->onlyFailedJobs,
+            '--connection' => $this->connection !== null,
+            '--search' => $this->search !== null,
+        ])
+            ->filter(fn (bool $set): bool => $set)
+            ->keys();
+
+        if ($conflicts->isNotEmpty()) {
+            throw new InvalidFilter(
+                '--batch shows the complete batch and cannot be combined with: '.$conflicts->implode(', ').'.'
+            );
+        }
     }
 
     /**

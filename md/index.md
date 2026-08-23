@@ -23,9 +23,14 @@ Requests Â· showing 50 of 184 Â· last 1h
 
 - Lists any of the 18 Telescope entry types with filters (time window, duration, route, status, connection, free text search).
 - Summarizes requests, queries, exceptions, and jobs: slow routes with P95 durations, repeated SQL patterns, likely N+1 detection, exception signatures, failing jobs.
+- Replays one request or job end to end with `--batch=<id>`, in recording order.
+- Watches live traffic with `--watch` and prints new entries as they arrive.
+- Manages monitored tags with `telescope:monitor` (list, add, remove).
 - Emits a versioned JSON envelope with `--json`, or one JSON object per line with `--ndjson`.
 - Exits non-zero on demand via `--fail-on` for CI pipelines.
 - Redacts fields that tend to contain sensitive values unless you ask for them.
+
+It pairs with the commands Telescope already ships (`telescope:clear`, `telescope:prune`, `telescope:pause`, `telescope:resume`) instead of duplicating them.
 
 Everything runs locally against Telescope's own storage tables. The package makes no network requests.
 
