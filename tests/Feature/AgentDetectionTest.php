@@ -42,17 +42,18 @@ it('returns the json contract automatically when an ai agent is detected', funct
 });
 
 it('reports the agent name from the AI_AGENT variable', function () {
-    actingAsAgent('AI_AGENT', 'claude-code');
+    actingAsAgent('AI_AGENT', 'my-custom-agent');
 
-    telescopeFactory()->request(['uri' => 'http://localhost/agent']);
-    telescopeFactory()->persist();
+    $factory = telescopeFactory();
+    $factory->request(['uri' => 'http://localhost/agent']);
+    $factory->persist();
 
     Artisan::call('telescope:inspect', ['--requests' => true]);
 
     /** @var array<string, mixed> $payload */
     $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
 
-    expect($payload['agent'])->toBe('claude');
+    expect($payload['agent'])->toBe('my-custom-agent');
 });
 
 it('keeps human output when the human flag is passed', function () {
