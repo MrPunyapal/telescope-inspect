@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased](https://github.com/MrPunyapal/telescope-inspect/commits/main)
+## [Unreleased](https://github.com/MrPunyapal/telescope-inspect/commits/main/compare/v0.1.0...HEAD)
 
 Nothing yet.
 
@@ -28,4 +28,26 @@ Initial release.
 - AI agent detection via `laravel/agent-detector`: when a command runs under an agent, output switches to JSON automatically (disable with `auto_json_for_agents`, override with `--human`). The envelope gains an `agent` key naming the detected agent.
 - Laravel Boost skill (`resources/boost/skills/telescope-inspect`) so installed agents know how to drive the commands and read the JSON contract.
 
-[Unreleased]: https://github.com/MrPunyapal/telescope-inspect/commits/main
+## [v0.1.0](https://github.com/MrPunyapal/telescope-inspect/commits/main/compare/main...v0.1.0) - 2026-08-23
+
+Initial release of Telescope Inspect.
+
+### What you get
+
+\\ash
+composer require --dev mrpunyapal/telescope-inspect
+php artisan telescope:inspect --requests --last=1h
+\\
+
+### Highlights
+
+- Inspect all 18 Telescope entry types with filters: time windows, duration, route, method, status, connection, free-text search
+- Analysis summaries: slow routes with P95 and queries-per-request, repeated SQL patterns, likely N+1 detection, exception signatures, job failure tracking
+- Replay a full request or job lifecycle with --batch=<id>\
+- Watch live traffic with --watch\
+- Manage monitored tags with \	elescope:monitor list|add|remove\
+- Versioned JSON envelope (--json) and NDJSON (--ndjson), sensitive fields redacted unless --full\
+- Automatic JSON for AI coding agents via laravel/agent-detector, plus a Laravel Boost skill
+- CI gates: --fail-on=exceptions,failed-jobs,slow-requests,slow-queries\ with documented exit codes
+
+Requires PHP 8.3+, Laravel 11/12/13, Telescope ^5.0.
