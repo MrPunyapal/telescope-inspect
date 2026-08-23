@@ -4,6 +4,7 @@ namespace MrPunyapal\TelescopeInspect\Commands;
 
 use Illuminate\Console\Command;
 use Laravel\Telescope\Contracts\EntriesRepository;
+use Throwable;
 
 /**
  * php artisan telescope:monitor
@@ -22,6 +23,15 @@ class MonitorCommand extends Command
 
     public function handle(EntriesRepository $repository): int
     {
+        try {
+            $repository->monitoring();
+        } catch (Throwable) {
+            $this->components->error('Telescope storage is not available.');
+            $this->components->info('Install Telescope first: composer require laravel/telescope && php artisan telescope:install && php artisan migrate');
+
+            return Command::FAILURE;
+        }
+
         $action = (string) $this->argument('action');
         $tags = collect($this->option('tag'))
             ->map(fn ($tag): string => trim((string) $tag))
@@ -68,16 +78,31 @@ class MonitorCommand extends Command
             return Command::INVALID;
         }
 
+        $before = collect($repository->monitoring());
+
         if ($add) {
             $repository->monitor($tags);
         } else {
             $repository->stopMonitoring($tags);
         }
 
+        $after = collect($repository->monitoring());
+
         foreach ($tags as $tag) {
-            $add
-                ? $this->components->info("Now monitoring [{$tag}].")
-                : $this->components->info("Stopped monitoring [{$tag}].");
+            $changed = $add
+                ? $after->contains($tag) && ! $before->contains($tag)
+                : ! $after->contains($tag) && $before->contains($tag);
+
+            if ($changed) {
+                $this->components->info(($add ? 'Now monitoring [' : 'Stopped monitoring [').$tag.'].');
+            } else {
+                $this->components->warn(sprintf(
+                    '%s [%s]: no change (it was %s).',
+                    $add ? 'Add' : 'Remove',
+                    $tag,
+                    $add ? 'already monitored' : 'not monitored'
+                ));
+            }
         }
 
         return Command::SUCCESS;

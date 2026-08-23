@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
 use Laravel\AgentDetector\AgentDetector;
+use Laravel\Telescope\Telescope;
 use MrPunyapal\TelescopeInspect\Analysis\IssueChecks;
 use MrPunyapal\TelescopeInspect\Filters\InspectFilters;
 use MrPunyapal\TelescopeInspect\Filters\InvalidFilter;
@@ -57,15 +58,15 @@ class InspectCommand extends Command
                             {--to= : Window end date/time in the app timezone (e.g. "2026-08-02")}
                             {--limit=50 : Maximum entries shown across the selected types}
                             {--min-duration= : Only entries that took at least this many milliseconds (requests, queries, redis, http); also sets the --fail-on slow threshold}
-                            {--route= : Request URI or controller action pattern, e.g. "orders/*" or "OrderController@index"}
+                            {--route= : Request URI path or controller action pattern, e.g. "orders/*" or "OrderController@index"}
                             {--method= : Comma-separated HTTP methods (e.g. GET,POST)}
                             {--status= : Comma-separated HTTP status codes (e.g. 500,404)}
                             {--failed : Only failed jobs}
                             {--connection= : Database/queue/Redis connection name}
-                            {--search= : Match entry tags or raw content}
+                            {--search= : Match entry tags or raw content (SQL LIKE wildcards are treated literally)}
                             {--json : Output the machine-readable JSON contract}
-                            {--ndjson : Output newline-delimited JSON items (requires a type flag or --show)}
-                            {--human : Force human-readable output even when an AI agent is detected}
+                            {--ndjson : Output newline-delimited JSON items; requires a type flag, --batch=<id>, or --show=<uuid>}
+                            {--human : Force human-readable output when an AI agent is detected (explicit --json/--ndjson still win)}
                             {--full : Include sensitive values Telescope recorded (output may contain secrets)}
                             {--fail-on= : Exit with code 3 when issues exist: exceptions,failed-jobs,slow-requests,slow-queries}';
 
@@ -86,86 +87,130 @@ Examples:
   artisan telescope:inspect --fail-on=exceptions,failed-jobs --last=15m
 
 Exit codes:
-  0  success
-  1  failure (Telescope storage missing, UUID not found)
+  0  success (including valid empty results)
+  1  failure (Telescope storage missing, UUID or batch id not found)
   2  invalid usage (bad filter values or combinations)
   3  issues found via --fail-on
 
 Notes:
   * Content filters (--route, --method, --status...) apply per matching
-    entry type; summaries cover the selected window even when row filters
-    narrow the listing.
-  * Sensitive values (payloads, bindings, traces) are redacted unless
-    --full is passed.
+    entry type; summaries cover the newest scan_limit rows of the window
+    even when row filters narrow the listing.
+  * Sensitive values (payloads, bindings, traces, dumps) are redacted
+    unless --full is passed.
+  * In JSON and NDJSON mode stdout carries only data; diagnostics go to
+    stderr as plain text.
+  * --watch runs until interrupted by a signal (Ctrl+C); it streams all
+    entries of the selected types and cannot apply content filters.
 HELP;
 
     public function handle(
         TelescopeInspector $inspector,
         EntryRepository $repository,
     ): int {
-        if (! $this->telescopeStorageExists()) {
-            $this->components->error('Telescope storage tables not found.');
-            $this->components->info('Run `php artisan migrate` after installing Telescope: composer require laravel/telescope && php artisan telescope:install');
-
-            return Command::FAILURE;
+        // An inspection tool should observe, not perturb: recording the
+        // command's own queries would pollute later results (and, in watch
+        // mode, grow memory for as long as the process lives).
+        if (class_exists(Telescope::class)) {
+            Telescope::stopRecording();
         }
 
-        // Structural output checks come before filter validation so the most
-        // fundamental error is reported first.
-        if ($this->option('ndjson') && $this->option('json')) {
-            $this->components->error('Use either --json or --ndjson, not both.');
+        // Resolved first so every diagnostic below can respect the stream
+        // contract: machine modes keep stdout parseable by routing errors
+        // to stderr as plain text.
+        $format = $this->resolveOutputFormat();
+        $machine = $format->isJson || $format->isNdjson;
 
-            return Command::INVALID;
+        // Structural output checks come first so the most fundamental error
+        // is reported before storage or filter problems.
+        if ($this->option('ndjson') && $this->option('json')) {
+            return $this->invalidUsage('--json and --ndjson cannot be combined.', machine: $machine);
         }
 
         if ($this->option('fail-on') !== null && $this->option('show') !== null) {
-            $this->components->error('--fail-on cannot be used together with --show.');
+            return $this->invalidUsage('--fail-on cannot be used together with --show.', machine: $machine);
+        }
 
-            return Command::INVALID;
+        if ($this->option('fail-on') !== null && $this->option('batch') !== null) {
+            return $this->invalidUsage('--fail-on cannot be used together with --batch.', machine: $machine);
         }
 
         $watchRequested = $this->option('watch') !== null;
 
-        if ($this->option('batch') !== null && $watchRequested) {
-            $this->components->error('--batch cannot be combined with --watch.');
+        if ($this->option('fail-on') !== null && $watchRequested) {
+            return $this->invalidUsage('--fail-on cannot be used together with --watch.', machine: $machine);
+        }
 
-            return Command::INVALID;
+        if ($this->option('batch') !== null && $watchRequested) {
+            return $this->invalidUsage('--batch cannot be combined with --watch.', machine: $machine);
+        }
+
+        if ($this->option('show') !== null && $watchRequested) {
+            return $this->invalidUsage('--show cannot be combined with --watch.', machine: $machine);
         }
 
         try {
             $filters = InspectFilters::fromOptions($this->options());
         } catch (InvalidFilter $error) {
-            $this->components->error($error->getMessage());
-
-            return Command::INVALID;
+            return $this->invalidUsage($error->getMessage(), machine: $machine);
         }
 
-        // AI agents get the JSON contract by default so they never have to
-        // scrape human tables. Explicit flags and --human always win.
-        $format = $this->resolveOutputFormat();
+        if ($watchRequested && $filters->hasContentFilters()) {
+            $ignored = ['--min-duration', '--route', '--method', '--status', '--failed', '--connection', '--search'];
 
-        if ($format->isNdjson && ! $filters->hasTypeSelection() && $filters->showUuid === null) {
-            $this->components->error('--ndjson requires at least one type flag or --show=<uuid>.');
+            $used = array_values(array_filter($ignored, fn (string $flag): bool => match ($flag) {
+                '--min-duration' => $filters->minDurationMs !== null,
+                '--route' => $filters->route !== null,
+                '--method' => $filters->methods !== [],
+                '--status' => $filters->statuses !== [],
+                '--failed' => $filters->onlyFailedJobs,
+                '--connection' => $filters->connection !== null,
+                '--search' => $filters->search !== null,
+            }));
 
-            return Command::INVALID;
+            return $this->invalidUsage(
+                '--watch streams all entries of the selected types and cannot filter them; remove: '.implode(', ', $used).'.',
+                machine: $machine
+            );
+        }
+
+        if (! $this->telescopeStorageExists()) {
+            $this->runtimeFailure('Telescope storage tables not found.', machine: $machine);
+            $this->failHint($machine, 'Run `php artisan migrate` after installing Telescope: composer require laravel/telescope && php artisan telescope:install');
+
+            return Command::FAILURE;
+        }
+
+        if ($format->isNdjson && ! $filters->hasTypeSelection() && $filters->showUuid === null && $filters->batchId === null) {
+            return $this->invalidUsage('--ndjson requires at least one type flag, --batch=<id>, or --show=<uuid>.', machine: true);
         }
 
         if ($watchRequested) {
             if (! $filters->hasTypeSelection()) {
-                $this->components->error('--watch requires at least one type flag.');
-
-                return Command::INVALID;
+                return $this->invalidUsage('--watch requires at least one type flag.', machine: $machine);
             }
 
-            return $this->watch($repository, $filters, $format);
+            $interval = self::resolveWatchInterval((string) $this->option('watch'));
+
+            if ($interval === null) {
+                return $this->invalidUsage('The --watch interval must be a whole number of seconds (at least 1).', machine: $machine);
+            }
+
+            return $this->watch($repository, $filters, $format, $interval);
         }
 
         $result = $inspector->inspect($filters);
 
-        if ($filters->showUuid !== null && $result->singleEntry === null && ! $format->isJson) {
-            $this->components->error("No Telescope entry found for UUID [{$filters->showUuid}].");
+        // A missing UUID is a runtime failure in every output mode; machine
+        // consumers get the error on stderr and an empty stdout.
+        if ($filters->showUuid !== null && $result->singleEntry === null) {
+            return $this->runtimeFailure("No Telescope entry found for UUID [{$filters->showUuid}].", machine: $machine);
+        }
 
-            return Command::FAILURE;
+        // Same for a batch id that matches nothing: scripts must be able to
+        // distinguish a typo from an empty-but-valid lifecycle.
+        if ($filters->batchId !== null && $result->totalInWindow === 0) {
+            return $this->runtimeFailure("No Telescope entries found for batch [{$filters->batchId}].", machine: $machine);
         }
 
         // Machine modes emit data only; diagnostics would corrupt piped
@@ -255,7 +300,10 @@ HELP;
             ->values()
             ->implode(' ');
 
-        $this->components->error('Issues found: '.implode(', ', $violations).". Inspect with: {$hints}");
+        $slowHit = array_intersect($violations, ['slow-requests', 'slow-queries']) !== [];
+        $threshold = $slowHit ? sprintf(' (slow threshold %sms)', number_format($this->slowThresholdFor($result))) : '';
+
+        $this->components->error('Issues found: '.implode(', ', $violations).$threshold.". Inspect with: {$hints}");
 
         return self::EXIT_ISSUES_FOUND;
     }
@@ -295,7 +343,7 @@ HELP;
         }
 
         if ($violations !== []) {
-            $this->output->getErrorStyle()->error('Issues found: '.implode(', ', $violations));
+            $this->emitDiagnostic('Issues found: '.implode(', ', $violations), machine: true);
         }
 
         return $violations === [] ? Command::SUCCESS : self::EXIT_ISSUES_FOUND;
@@ -308,25 +356,103 @@ HELP;
     }
 
     /**
+     * Report invalid usage on the correct stream and return the
+     * invalid-usage exit code.
+     *
+     * Machine modes keep stdout parseable: the message goes to stderr as
+     * plain text. Human mode keeps Laravel's styled error block.
+     */
+    private function invalidUsage(string $message, bool $machine = false): int
+    {
+        $this->emitDiagnostic($message, $machine);
+
+        return Command::INVALID;
+    }
+
+    /**
+     * Report a runtime failure (missing storage, unknown id) on the correct
+     * stream and return the failure exit code.
+     */
+    private function runtimeFailure(string $message, bool $machine = false): int
+    {
+        $this->emitDiagnostic($message, $machine);
+
+        return Command::FAILURE;
+    }
+
+    private function emitDiagnostic(string $message, bool $machine): void
+    {
+        if ($machine) {
+            // Falls back to the normal output stream when no separate stderr
+            // exists (e.g. buffered output in tests), keeping messages visible.
+            $this->output->getErrorStyle()->writeln($message);
+
+            return;
+        }
+
+        $this->components->error($message);
+    }
+
+    /**
+     * Emit an additional hint line using the same stream rules.
+     */
+    private function failHint(bool $machine, string $message): void
+    {
+        if ($machine) {
+            $this->output->getErrorStyle()->writeln($message);
+
+            return;
+        }
+
+        $this->components->info($message);
+    }
+
+    /**
+     * Parse the --watch interval; null signals invalid input.
+     */
+    private static function resolveWatchInterval(string $value): ?int
+    {
+        $trimmed = trim($value);
+
+        if ($trimmed === '') {
+            return 2;
+        }
+
+        if (! ctype_digit($trimmed) || (int) $trimmed < 1) {
+            return null;
+        }
+
+        return (int) $trimmed;
+    }
+
+    /**
      * Tail new entries as they are recorded (--watch[=seconds]).
      *
      * Starts from the current high-water mark so only fresh traffic prints.
-     * Runs until the process is interrupted.
+     * Runs until the process is interrupted. Machine modes emit one JSON
+     * object per entry on stdout and nothing else; the start-up banner is
+     * reserved for human mode.
      */
-    private function watch(EntryRepository $repository, InspectFilters $filters, OutputFormat $format): int
+    private function watch(EntryRepository $repository, InspectFilters $filters, OutputFormat $format, int $interval): int
     {
-        $interval = max(1, (int) ((string) ($this->option('watch') ?: 2)));
-
         $machine = $format->isNdjson || $format->isJson;
         $sequence = $repository->latestSequence();
 
-        $this->components->info(sprintf(
-            'Watching %s. New entries appear below; press Ctrl+C to stop.',
-            implode(', ', array_map(fn ($t) => $t->label(), $filters->types))
-        ));
+        if (! $machine) {
+            $this->components->info(sprintf(
+                'Watching %s. New entries appear below; press Ctrl+C to stop.',
+                implode(', ', array_map(fn ($t) => $t->label(), $filters->types))
+            ));
+
+            if ($filters->includeSensitiveValues) {
+                $this->components->warn('Watch headlines never show sensitive fields; use a JSON mode with --full for those.');
+            }
+        }
 
         for (; ;) {
-            foreach ($repository->findSinceSequence($sequence, $filters->types, 100) as $entry) {
+            $page = $repository->findSinceSequence($sequence, $filters->types, 100, includeSensitiveValues: $filters->includeSensitiveValues);
+
+            foreach ($page as $entry) {
                 $sequence = max($sequence, $entry->sequence ?? $sequence);
 
                 if ($machine) {
@@ -345,11 +471,24 @@ HELP;
                     '%s  %-12s %s',
                     $entry->createdAt?->timezone(config('app.timezone'))->format('H:i:s') ?? str_repeat(' ', 8),
                     '<fg=cyan>'.$entry->type->label().'</>',
-                    $entry->type->headline($entry->fields)
+                    $this->escapeMarkup($entry->type->headline($entry->fields))
                 ));
             }
 
-            sleep($interval);
+            // A full page means traffic is arriving faster than the poll
+            // interval; drain the backlog immediately instead of sleeping.
+            if (count($page) < 100) {
+                sleep($interval);
+            }
         }
+    }
+
+    /**
+     * Neutralize Symfony style tags in recorded content so entry data can
+     * never restyle or spoof terminal output.
+     */
+    private function escapeMarkup(string $value): string
+    {
+        return str_replace('<', '<<', $value);
     }
 }

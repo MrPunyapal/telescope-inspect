@@ -16,7 +16,9 @@ class TelescopeInspectServiceProvider extends ServiceProvider
 
         $this->app->singleton(ContentNormalizer::class, function (): ContentNormalizer {
             return new ContentNormalizer(
-                valueLimit: (int) config('telescope-inspect.value_limit', 1000),
+                // Clamped so a stray config value cannot balloon output or
+                // memory; the floor keeps truncation markers meaningful.
+                valueLimit: max(50, min(20000, (int) config('telescope-inspect.value_limit', 1000))),
             );
         });
 

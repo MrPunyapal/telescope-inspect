@@ -2,16 +2,19 @@
 
 namespace MrPunyapal\TelescopeInspect\Filters;
 
+use MrPunyapal\TelescopeInspect\Analysis\IssueChecks;
 use MrPunyapal\TelescopeInspect\Entries\EntryType;
 
 /**
  * Fully resolved, validated inspection filters.
  *
- * Built from raw Artisan option values; construction fails with an
- * InvalidFilter exception when a value cannot be understood or when a
- * filter can never apply to the selected entry types.
+ * Built from raw Artisan option values via fromOptions(), or from semantic
+ * keys via fromArray() for programmatic integrations; construction fails
+ * with an InvalidFilter exception when a value cannot be understood or when
+ * a filter can never apply to the selected entry types.
  *
- * @internal
+ * This class is part of the package's supported public API, together with
+ * TelescopeInspector and InspectionResult.
  */
 final class InspectFilters
 {
@@ -75,8 +78,86 @@ final class InspectFilters
 
         $filters->validateBatchExclusivity();
         $filters->validateTypeCompatibility();
+        $filters->validateSlowThreshold();
 
         return $filters;
+    }
+
+    /**
+     * Build filters from semantic keys — the programmatic counterpart to
+     * the Artisan options accepted by fromOptions().
+     *
+     * Supported keys: types (list of type values or flag names), last,
+     * from, to, limit, min_duration_ms (float), route, methods, statuses,
+     * failed_jobs_only (bool), connection, search, batch_id, show_uuid,
+     * full (bool), fail_on (list of check names).
+     *
+     * @param  array<string, mixed>  $values
+     *
+     * @throws InvalidFilter
+     */
+    public static function fromArray(array $values): self
+    {
+        return self::fromOptions([
+            'requests' => self::wantsType($values, 'request'),
+            'queries' => self::wantsType($values, 'query'),
+            'exceptions' => self::wantsType($values, 'exception'),
+            'jobs' => self::wantsType($values, 'job'),
+            'commands' => self::wantsType($values, 'command'),
+            'schedule' => self::wantsType($values, 'schedule'),
+            'cache' => self::wantsType($values, 'cache'),
+            'dumps' => self::wantsType($values, 'dump'),
+            'events' => self::wantsType($values, 'event'),
+            'gates' => self::wantsType($values, 'gate'),
+            'http' => self::wantsType($values, 'client_request'),
+            'logs' => self::wantsType($values, 'log'),
+            'mail' => self::wantsType($values, 'mail'),
+            'models' => self::wantsType($values, 'model'),
+            'notifications' => self::wantsType($values, 'notification'),
+            'redis' => self::wantsType($values, 'redis'),
+            'views' => self::wantsType($values, 'view'),
+            'batches' => self::wantsType($values, 'batch'),
+            'last' => $values['last'] ?? null,
+            'from' => isset($values['from']) ? (string) $values['from'] : null,
+            'to' => isset($values['to']) ? (string) $values['to'] : null,
+            'limit' => $values['limit'] ?? 50,
+            'min-duration' => $values['min_duration_ms'] ?? null,
+            'route' => $values['route'] ?? null,
+            'method' => is_array($values['methods'] ?? null) ? implode(',', $values['methods']) : ($values['methods'] ?? null),
+            'status' => is_array($values['statuses'] ?? null) ? implode(',', array_map(strval(...), $values['statuses'])) : ($values['statuses'] ?? null),
+            'failed' => (bool) ($values['failed_jobs_only'] ?? false),
+            'connection' => $values['connection'] ?? null,
+            'search' => $values['search'] ?? null,
+            'batch' => $values['batch_id'] ?? null,
+            'show' => $values['show_uuid'] ?? null,
+            'full' => (bool) ($values['full'] ?? false),
+            'fail-on' => is_array($values['fail_on'] ?? null) ? implode(',', $values['fail_on']) : ($values['fail_on'] ?? null),
+        ]);
+    }
+
+    /**
+     * Whether the requested type value or flag name was selected.
+     *
+     * @param  list<string>|array<mixed>  $values
+     */
+    private static function wantsType(array $values, string $type): bool
+    {
+        $requested = $values['types'] ?? [];
+
+        if (! is_array($requested)) {
+            return false;
+        }
+
+        foreach ($requested as $name) {
+            $candidate = EntryType::tryFrom((string) $name)
+                ?? collect(EntryType::all())->first(fn (EntryType $t): bool => $t->flagName() === (string) $name);
+
+            if ($candidate?->value === $type) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -157,6 +238,9 @@ final class InspectFilters
             '--failed' => $this->onlyFailedJobs,
             '--connection' => $this->connection !== null,
             '--search' => $this->search !== null,
+            // A batch replay always shows the whole lifecycle, so a listing
+            // limit can only mislead.
+            '--limit' => $this->limit !== 50,
         ])
             ->filter(fn (bool $set): bool => $set)
             ->keys();
@@ -183,20 +267,20 @@ final class InspectFilters
 
         $rules = [
             '--route' => fn (): bool => $this->route !== null && ! $selected->contains(
-                fn (EntryType $t): bool => in_array($t, [EntryType::Request, EntryType::HttpClientRequest], true)
+                fn (EntryType $t): bool => $t->supportsHttpFilters()
             ),
             '--method' => fn (): bool => $this->methods !== [] && ! $selected->contains(
-                fn (EntryType $t): bool => in_array($t, [EntryType::Request, EntryType::HttpClientRequest], true)
+                fn (EntryType $t): bool => $t->supportsHttpFilters()
             ),
             '--status' => fn (): bool => $this->statuses !== [] && ! $selected->contains(
-                fn (EntryType $t): bool => in_array($t, [EntryType::Request, EntryType::HttpClientRequest], true)
+                fn (EntryType $t): bool => $t->supportsHttpFilters()
             ),
             '--failed' => fn (): bool => $this->onlyFailedJobs && ! $selected->contains(EntryType::Job),
             '--connection' => fn (): bool => $this->connection !== null && ! $selected->contains(
-                fn (EntryType $t): bool => in_array($t, [EntryType::Query, EntryType::Job, EntryType::Redis, EntryType::Batch], true)
+                fn (EntryType $t): bool => $t->supportsConnectionFilter()
             ),
             '--min-duration' => fn (): bool => $this->minDurationMs !== null && ! $selected->contains(
-                fn (EntryType $t): bool => in_array($t, [EntryType::Request, EntryType::Query, EntryType::Redis, EntryType::HttpClientRequest], true)
+                fn (EntryType $t): bool => $t->supportsDurationFilter()
             ),
         ];
 
@@ -204,6 +288,29 @@ final class InspectFilters
             if ($neverApplies()) {
                 throw new InvalidFilter("The {$flag} filter does not apply to any of the selected entry types.");
             }
+        }
+    }
+
+    /**
+     * Reject --min-duration=0 combined with slow --fail-on checks: a zero
+     * threshold would mark every analyzed entry as slow, guaranteeing a
+     * red build that looks like a detection.
+     *
+     * @throws InvalidFilter
+     */
+    private function validateSlowThreshold(): void
+    {
+        if ($this->minDurationMs !== 0.0) {
+            return;
+        }
+
+        $slowChecks = array_intersect($this->failOn, ['slow-requests', 'slow-queries']);
+
+        if ($slowChecks !== []) {
+            throw new InvalidFilter(
+                '--min-duration=0 would mark every entry as slow for: '.implode(', ', $slowChecks).
+                '. Use a positive value, or drop it to use the configured threshold.'
+            );
         }
     }
 
@@ -296,6 +403,10 @@ final class InspectFilters
                 if (! ctype_digit($status)) {
                     throw new InvalidFilter("The --status value [{$status}] must be an HTTP status code such as 200 or 500.");
                 }
+
+                if ((int) $status < 100) {
+                    throw new InvalidFilter("The --status value [{$status}] must be a valid HTTP status code (100-599).");
+                }
             })
             ->map(fn (string $status): int => (int) $status)
             ->values()
@@ -313,7 +424,8 @@ final class InspectFilters
             return [];
         }
 
-        $known = ['exceptions', 'failed-jobs', 'slow-requests', 'slow-queries'];
+        // IssueChecks is the canonical home of the fail-on vocabulary.
+        $known = array_keys(IssueChecks::known());
 
         $checks = collect(self::splitList($value))
             ->each(function (string $check) use ($known): void {
