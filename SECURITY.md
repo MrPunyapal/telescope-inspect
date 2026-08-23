@@ -2,9 +2,7 @@
 
 ## Supported versions
 
-| Version | Supported |
-| --- | --- |
-| 0.1.x | ✅ |
+The `main` branch is the only supported line. When in doubt, update to the latest commit on `main` before reporting an issue.
 
 ## Reporting a vulnerability
 
