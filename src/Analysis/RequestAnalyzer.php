@@ -45,7 +45,7 @@ final class RequestAnalyzer
      */
     public function summarize(): array
     {
-        $this->repository->walk(
+        $scanned = $this->repository->walk(
             [EntryType::Request],
             $this->filters->timeRange,
             $this->maxRows,
@@ -54,6 +54,7 @@ final class RequestAnalyzer
 
         return [
             'requests_analyzed' => $this->count,
+            'rows_scanned' => $scanned,
             'avg_duration_ms' => Percentiles::mean($this->durations),
             'p95_duration_ms' => Percentiles::percentile($this->durations, self::P95),
             'status_distribution' => $this->sortedStatuses(),
@@ -92,7 +93,6 @@ final class RequestAnalyzer
         // Every entry recorded during one request shares the same batch id;
         // this is what links queries to the request that caused them.
         $route['_batches'][] = $entry->batchId;
-
         if (is_numeric($duration)) {
             $route['_durations'][] = (float) $duration;
             $this->durations[] = (float) $duration;
@@ -127,11 +127,13 @@ final class RequestAnalyzer
      */
     private function finalizeRoutes(): array
     {
+        $seen = [];
         $batchIds = [];
 
         foreach ($this->routes as $route) {
             foreach ($route['_batches'] as $batch) {
-                if ($batch !== null && ! in_array($batch, $batchIds, true)) {
+                if ($batch !== null && ! isset($seen[$batch])) {
+                    $seen[$batch] = true;
                     $batchIds[] = $batch;
                 }
             }
@@ -142,19 +144,25 @@ final class RequestAnalyzer
         return collect($this->routes)
             ->map(function (array $route) use ($queryCounts): array {
                 $durations = $route['_durations'];
-                $batches = $route['_batches'];
+                $batches = array_values(array_filter($route['_batches']));
                 unset($route['_durations'], $route['_batches']);
 
                 $route['avg_duration_ms'] = Percentiles::mean($durations);
                 $route['p95_duration_ms'] = Percentiles::percentile($durations, self::P95);
 
-                $queryTotal = 0;
-                foreach ($batches as $batch) {
-                    $queryTotal += (int) $queryCounts->get((string) $batch, 0);
+                // Only requests that actually carry a batch id can have
+                // their queries attributed; without any, report unknown.
+                if ($batches === []) {
+                    $route['avg_queries_per_request'] = null;
+                } else {
+                    $queryTotal = 0;
+
+                    foreach ($batches as $batch) {
+                        $queryTotal += (int) $queryCounts->get((string) $batch, 0);
+                    }
+
+                    $route['avg_queries_per_request'] = round($queryTotal / count($batches), 1);
                 }
-                $route['avg_queries_per_request'] = count($batches) > 0
-                    ? round($queryTotal / count($batches), 1)
-                    : null;
 
                 ksort($route['status_codes']);
 

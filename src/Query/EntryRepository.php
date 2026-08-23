@@ -26,7 +26,7 @@ final class EntryRepository
 {
     public function __construct(
         private readonly ContentNormalizer $normalizer,
-        private readonly int $scanLimit = 5000,
+        public readonly int $scanLimit = 5000,
     ) {}
 
     /**
@@ -72,11 +72,27 @@ final class EntryRepository
         $this->applySearch($query, $filters->search);
 
         $entries = [];
+        $candidates = [];
+        $scanned = 0;
 
         foreach ($query->cursor() as $model) {
+            $scanned++;
+
             $entry = $this->hydrate($model->getAttributes(), includeSensitiveValues: $filters->includeSensitiveValues);
 
             if ($entry === null || ! $this->passesRowFilters($entry, $filters)) {
+                continue;
+            }
+
+            if ($filters->search !== null) {
+                // Candidates are gathered first so every tag lookup for the
+                // whole scan happens in a few chunked queries.
+                $candidates[] = $entry;
+
+                if (count($candidates) >= $effectiveLimit) {
+                    break;
+                }
+
                 continue;
             }
 
@@ -87,16 +103,24 @@ final class EntryRepository
             }
         }
 
-        $this->lastScanTruncated = count($entries) < $filters->limit
-            && $effectiveLimit === $this->scanLimit;
+        if ($candidates !== []) {
+            $entries = $this->verifySearchCandidates($candidates, $filters);
+        }
 
-        return $entries;
+        // Truncation means the scan hit its ceiling while the caller asked
+        // for more than was found; a cursor that ends early means the whole
+        // window was seen and nothing was cut off.
+        $this->lastScanTruncated = $effectiveLimit === $this->scanLimit
+            && $scanned >= $effectiveLimit
+            && count($entries) < $filters->limit;
+
+        return array_slice($entries, 0, $filters->limit);
     }
 
     /**
      * Find a single entry by UUID, including its tags.
      */
-    public function findByUuid(string $uuid): ?NormalizedEntry
+    public function findByUuid(string $uuid, bool $includeSensitiveValues = false): ?NormalizedEntry
     {
         $row = EntryModel::query()->where('uuid', $uuid)->first();
 
@@ -110,7 +134,7 @@ final class EntryRepository
             ->pluck('tag')
             ->all();
 
-        return $this->hydrate($row->getAttributes(), $tags, includeSensitiveValues: true);
+        return $this->hydrate($row->getAttributes(), $tags, includeSensitiveValues: $includeSensitiveValues);
     }
 
     /**
@@ -147,18 +171,41 @@ final class EntryRepository
      * A batch is everything Telescope recorded during one request or job
      * lifecycle; the batch id is shown by --show and in every JSON item.
      *
+     * When the id matches no flush batch, it is retried as a bus batch id
+     * (the identifier of an Illuminate\Bus batch): those live in the
+     * family_hash column and span multiple flush batches.
+     *
      * @return list<NormalizedEntry>
      */
     public function getForBatch(string $batchId): array
     {
-        $rows = EntryModel::query()
-            ->where('batch_id', $batchId)
-            ->orderBy('sequence')
-            ->get();
+        $entries = $this->collectBatchRows(fn (): Builder => EntryModel::query()
+            ->where('batch_id', $batchId));
 
+        if ($entries === []) {
+            $entries = $this->collectBatchRows(fn (): Builder => EntryModel::query()
+                ->where('family_hash', $batchId));
+        }
+
+        // A full batch replay must stay bounded like every other read; when
+        // the ceiling was reached, consumers see scan.truncated in JSON and
+        // a note in human output rather than silently truncated history.
+        $this->lastScanTruncated = count($entries) >= $this->scanLimit;
+
+        return $entries;
+    }
+
+    /**
+     * Walk one batch query under the scan ceiling, chronological order.
+     *
+     * @param  callable(): Builder<EntryModel>  $query
+     * @return list<NormalizedEntry>
+     */
+    private function collectBatchRows(callable $query): array
+    {
         $entries = [];
 
-        foreach ($rows as $row) {
+        foreach ($query()->orderBy('sequence')->limit($this->scanLimit)->cursor() as $row) {
             $entry = $this->hydrate($row->getAttributes(), includeSensitiveValues: true);
 
             if ($entry !== null) {
@@ -175,7 +222,7 @@ final class EntryRepository
      * @param  list<EntryType>  $types
      * @return list<NormalizedEntry>
      */
-    public function findSinceSequence(int $sequence, array $types, int $limit = 50): array
+    public function findSinceSequence(int $sequence, array $types, int $limit = 50, bool $includeSensitiveValues = false): array
     {
         $rows = EntryModel::query()
             ->whereIn('type', array_map(fn (EntryType $t): string => $t->value, $types))
@@ -187,7 +234,7 @@ final class EntryRepository
         $entries = [];
 
         foreach ($rows as $row) {
-            $entry = $this->hydrate($row->getAttributes());
+            $entry = $this->hydrate($row->getAttributes(), includeSensitiveValues: $includeSensitiveValues);
 
             if ($entry !== null) {
                 $entries[] = $entry;
@@ -206,6 +253,21 @@ final class EntryRepository
     }
 
     /**
+     * How many job entries in the window carry Telescope's failed status.
+     *
+     * Used for the overview hint; reads the JSON status marker directly so
+     * no per-row walk is needed. Telescope writes job content compact, so
+     * the marker match is exact for standard payloads.
+     */
+    public function failedJobCount(?TimeRange $range): int
+    {
+        return $this->baseQuery($range)
+            ->where('type', EntryType::Job->value)
+            ->where('content', 'like', '%"status":"failed"%')
+            ->count();
+    }
+
+    /**
      * Count query entries grouped by batch id, for the given batch ids.
      *
      * Used to attribute database work to the requests that caused it; all
@@ -218,7 +280,7 @@ final class EntryRepository
     {
         $counts = collect();
 
-        foreach (array_chunk($batchIds, 1000) as $chunk) {
+        foreach (array_chunk($batchIds, 999) as $chunk) {
             $counts = $counts->merge(
                 $this->baseQuery(null)
                     ->whereIn('type', [EntryType::Query->value])
@@ -266,8 +328,14 @@ final class EntryRepository
     /**
      * Apply --search across Telescope tags and raw content.
      *
-     * Note: leading-wildcard LIKE cannot use indexes; this is acceptable for
-     * a bounded CLI tool but can be slow on very large tables.
+     * Telescope stores content JSON-encoded WITHOUT unescaped slashes or
+     * unicode, so a term like "users/create" only appears in storage as
+     * "users\/create"; both the raw and the encoded needle are matched.
+     *
+     * An explicit ESCAPE clause keeps literal % _ \ semantics identical
+     * across MySQL, PostgreSQL, and SQLite. After hydration every candidate
+     * is re-verified against its normalized fields (and tags) so dialect
+     * wildcard differences can never widen results.
      *
      * @param  Builder<EntryModel>  $query
      */
@@ -277,17 +345,117 @@ final class EntryRepository
             return;
         }
 
-        $pattern = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $search).'%';
+        $patterns = $this->searchPatterns($search);
 
-        $query->where(function ($query) use ($pattern): void {
-            $query
-                ->whereIn('uuid', function ($sub) use ($pattern): void {
-                    $sub->select('entry_uuid')
-                        ->from('telescope_entries_tags')
-                        ->where('tag', 'like', $pattern);
-                })
-                ->orWhere('content', 'like', $pattern);
+        $query->where(function ($query) use ($patterns): void {
+            // Tag matches...
+            $query->orWhereIn('uuid', function ($sub) use ($patterns): void {
+                $sub->select('entry_uuid')->from('telescope_entries_tags');
+
+                foreach ($patterns as $index => $pattern) {
+                    $index === 0
+                        ? $sub->whereRaw('tag LIKE ? ESCAPE ?', [$pattern, '\\'])
+                        : $sub->orWhereRaw('tag LIKE ? ESCAPE ?', [$pattern, '\\']);
+                }
+            });
+
+            // ...or raw content matches, for each needle form.
+            foreach ($patterns as $pattern) {
+                $query->orWhereRaw('content LIKE ? ESCAPE ?', [$pattern, '\\']);
+            }
         });
+    }
+
+    /**
+     * SQL LIKE patterns for both raw and JSON-escaped needle forms.
+     *
+     * @return list<string>
+     */
+    private function searchPatterns(string $search): array
+    {
+        $escape = fn (string $value): string => str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $value);
+
+        $patterns = ['%'.$escape($search).'%'];
+
+        $encoded = trim((string) json_encode($search, JSON_INVALID_UTF8_SUBSTITUTE), '"');
+
+        if ($encoded !== '' && $encoded !== $search) {
+            $patterns[] = '%'.$escape($encoded).'%';
+        }
+
+        return $patterns;
+    }
+
+    /**
+     * Whether the normalized fields contain the search term.
+     *
+     * Case handling follows mb_stripos so verification is consistent even
+     * where database LIKE collations are not.
+     */
+    private function searchMatches(string $haystack, string $needle): bool
+    {
+        return mb_stripos($haystack, $needle) !== false;
+    }
+
+    /**
+     * Re-verify search candidates against normalized fields and tags so
+     * results match one consistent semantic across every database driver.
+     * The SQL prefilter may behave differently per dialect; this pass makes
+     * the final answer dialect-independent.
+     *
+     * @param  list<NormalizedEntry>  $candidates
+     * @return list<NormalizedEntry>
+     */
+    private function verifySearchCandidates(array $candidates, InspectFilters $filters): array
+    {
+        $search = (string) $filters->search;
+
+        $tags = $this->tagsForUuids(array_map(fn (NormalizedEntry $e): string => $e->uuid, $candidates));
+
+        $matches = [];
+
+        foreach ($candidates as $entry) {
+            $haystack = (string) json_encode($entry->fields, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+
+            if ($this->searchMatches($haystack, $search)) {
+                $matches[] = $entry;
+
+                continue;
+            }
+
+            foreach ($tags[$entry->uuid] ?? [] as $tag) {
+                if (mb_stripos((string) $tag, $search) !== false) {
+                    $matches[] = $entry;
+
+                    break;
+                }
+            }
+        }
+
+        return array_slice($matches, 0, $filters->limit);
+    }
+
+    /**
+     * Fetch tags for many entries in chunked queries.
+     *
+     * @param  list<string>  $uuids
+     * @return array<string, list<string>> uuid => tags
+     */
+    private function tagsForUuids(array $uuids): array
+    {
+        $tags = [];
+
+        foreach (array_chunk($uuids, 999) as $chunk) {
+            DB::connection((new EntryModel)->getConnectionName())
+                ->table('telescope_entries_tags')
+                ->whereIn('entry_uuid', $chunk)
+                ->get()
+                ->each(function ($row) use (&$tags): void {
+                    $tags[(string) $row->entry_uuid][] = (string) $row->tag;
+                });
+        }
+
+        return $tags;
     }
 
     /**

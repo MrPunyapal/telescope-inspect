@@ -39,7 +39,7 @@ final class JobAnalyzer
      */
     public function summarize(): array
     {
-        $this->repository->walk(
+        $scanned = $this->repository->walk(
             [EntryType::Job],
             $this->filters->timeRange,
             $this->maxRows,
@@ -51,6 +51,7 @@ final class JobAnalyzer
 
         return [
             'jobs_analyzed' => $this->count,
+            'rows_scanned' => $scanned,
             'status_distribution' => $this->statuses,
             'queues' => $this->queues,
             'failed' => [

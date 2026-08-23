@@ -3,6 +3,7 @@
 namespace MrPunyapal\TelescopeInspect;
 
 use MrPunyapal\TelescopeInspect\Analysis\ExceptionAnalyzer;
+use MrPunyapal\TelescopeInspect\Analysis\IssueChecks;
 use MrPunyapal\TelescopeInspect\Analysis\JobAnalyzer;
 use MrPunyapal\TelescopeInspect\Analysis\QueryAnalyzer;
 use MrPunyapal\TelescopeInspect\Analysis\RequestAnalyzer;
@@ -36,33 +37,36 @@ final class TelescopeInspector
             return $this->inspectBatch($filters);
         }
 
+        if ($filters->showUuid !== null) {
+            // A direct lookup does not need window aggregates; skipping the
+            // full-window COUNT keeps repeated --show calls cheap.
+            return new InspectionResult(
+                filters: $filters,
+                generatedAt: now(),
+                totalInWindow: 0,
+                countsByType: [],
+                singleEntry: $this->repository->findByUuid($filters->showUuid, includeSensitiveValues: $filters->includeSensitiveValues)?->toArray(),
+                scanLimit: $this->repository->scanLimit,
+            );
+        }
+
         $countsByType = $this->repository->countsPerType($filters->timeRange)
             ->mapWithKeys(fn ($count, string $type): array => [$type => (int) $count])
             ->all();
 
         $totalInWindow = array_sum($countsByType);
 
-        if ($filters->showUuid !== null) {
-            return new InspectionResult(
-                filters: $filters,
-                generatedAt: now(),
-                totalInWindow: $totalInWindow,
-                countsByType: $countsByType,
-                singleEntry: $this->repository->findByUuid($filters->showUuid)?->toArray(),
-                scanLimit: $this->scanLimit(),
-            );
-        }
-
         // One bounded fetch, then partition by type; never one query per type.
         $entries = $filters->hasTypeSelection() ? $this->repository->get($filters) : [];
 
+        // Group in the caller's declared order so machine consumers get a
+        // deterministic item stream regardless of which type is newest.
         $itemsByType = [];
+        foreach ($filters->types as $type) {
+            $itemsByType[$type->value] = [];
+        }
         foreach ($entries as $entry) {
             $itemsByType[$entry->type->value][] = $entry;
-        }
-
-        foreach ($filters->types as $type) {
-            $itemsByType[$type->value] ??= [];
         }
 
         $summariesByType = $this->buildSummaries($filters, $countsByType, $filters->types);
@@ -75,7 +79,10 @@ final class TelescopeInspector
             itemsByType: $itemsByType,
             summariesByType: $summariesByType,
             scanTruncated: $this->repository->lastScanWasTruncated(),
-            scanLimit: $this->scanLimit(),
+            scanLimit: $this->repository->scanLimit,
+            failedJobsInWindow: $filters->hasTypeSelection()
+                ? 0 // The overview tip is the only consumer.
+                : $this->repository->failedJobCount($filters->timeRange),
         );
     }
 
@@ -102,7 +109,8 @@ final class TelescopeInspector
             totalInWindow: count($entries),
             countsByType: $countsByType,
             itemsByType: $itemsByType,
-            scanLimit: $this->scanLimit(),
+            scanTruncated: $this->repository->lastScanWasTruncated(),
+            scanLimit: $this->repository->scanLimit,
         );
     }
 
@@ -117,12 +125,7 @@ final class TelescopeInspector
      */
     private function buildSummaries(InspectFilters $filters, array $countsByType, array $selected): array
     {
-        $required = collect([
-            'exceptions' => EntryType::Exception,
-            'failed-jobs' => EntryType::Job,
-            'slow-requests' => EntryType::Request,
-            'slow-queries' => EntryType::Query,
-        ])
+        $required = collect(IssueChecks::checkedTypes())
             ->filter(fn (EntryType $type, string $check): bool => in_array($check, $filters->failOn, true))
             ->values()
             ->merge($selected)
@@ -152,7 +155,7 @@ final class TelescopeInspector
      */
     private function summarize(EntryType $type, InspectFilters $filters): ?array
     {
-        $maxRows = (int) config('telescope-inspect.scan_limit', 5000);
+        $maxRows = $this->repository->scanLimit;
 
         return match ($type) {
             EntryType::Request => (new RequestAnalyzer($this->repository, $filters, $maxRows))->summarize(),
@@ -161,10 +164,5 @@ final class TelescopeInspector
             EntryType::Job => (new JobAnalyzer($this->repository, $filters, $maxRows))->summarize(),
             default => null,
         };
-    }
-
-    private function scanLimit(): int
-    {
-        return (int) config('telescope-inspect.scan_limit', 5000);
     }
 }

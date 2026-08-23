@@ -34,7 +34,7 @@ final class ExceptionAnalyzer
      */
     public function summarize(): array
     {
-        $this->repository->walk(
+        $scanned = $this->repository->walk(
             [EntryType::Exception],
             $this->filters->timeRange,
             $this->maxRows,
@@ -43,6 +43,7 @@ final class ExceptionAnalyzer
 
         return [
             'exceptions_analyzed' => $this->count,
+            'rows_scanned' => $scanned,
             'distinct_signatures' => count($this->groups),
             'most_frequent' => $this->mostFrequent(),
             'latest' => $this->latest(),

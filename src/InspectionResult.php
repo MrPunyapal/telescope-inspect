@@ -32,6 +32,7 @@ final class InspectionResult
         public readonly ?array $singleEntry = null,
         public readonly bool $scanTruncated = false,
         public readonly int $scanLimit = 5000,
+        public readonly int $failedJobsInWindow = 0,
     ) {}
 
     /**
