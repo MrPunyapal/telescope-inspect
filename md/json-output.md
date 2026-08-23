@@ -1,6 +1,10 @@
+---
+order: 4
+---
+
 # JSON output
 
-`--json` is a first-class product surface, not an afterthought. The output is valid JSON with no ANSI codes or decorative text on stdout — pipe it to files, `jq`, CI steps, IDE extensions, MCP adapters, or AI agents.
+`--json` is a first-class product surface, not an afterthought. The output is valid JSON with no ANSI codes or decorative text on stdout â€” pipe it to files, `jq`, CI steps, IDE extensions, MCP adapters, or AI agents.
 
 ```bash
 php artisan telescope:inspect --requests --queries --exceptions --jobs --last=1h --json > telescope.json
@@ -36,17 +40,17 @@ php artisan telescope:inspect --requests --queries --exceptions --jobs --last=1h
 }
 ```
 
-- **schema_version** — bump-major contract. Within `1.x`, existing fields keep their meaning; new fields may appear.
-- **generated_at** — UTC ISO 8601.
+- **schema_version** â€” bump-major contract. Within `1.x`, existing fields keep their meaning; new fields may appear.
+- **generated_at** â€” UTC ISO 8601.
 - **agent** - name of the detected AI agent when JSON was auto-selected for it, otherwise `null`.
 - **filters** - exactly what you asked for plus the resolved UTC window. `batch_id` appears when `--batch` is used. `--show` is intentionally not echoed: it selects an entry directly.
-- **summary.total_entries_in_window** — total Telescope entries in the window across all types.
-- **summary.entries_by_type** — per-type counts (only types with entries).
-- **summary.items_returned** — how many items were included per type (`--limit` caps the combined listing, newest first).
-- **summary.analysis** — analyzer results for requests, queries, exceptions and jobs when those types are selected ([details](analysis.md)).
-- **summary.analysis_scoped_to_filters** — true when content filters narrowed which rows fed the listing; analysis itself always covers the whole selected window.
-- **summary.scan** — `{ "limit", "truncated" }`: the bounded newest-first scan ceiling and whether it was hit. When `truncated` is true, results may be incomplete.
-- **violations** — `--fail-on` checks that matched (empty array otherwise); mirrors exit code 3.
+- **summary.total_entries_in_window** â€” total Telescope entries in the window across all types.
+- **summary.entries_by_type** â€” per-type counts (only types with entries).
+- **summary.items_returned** â€” how many items were included per type (`--limit` caps the combined listing, newest first).
+- **summary.analysis** â€” analyzer results for requests, queries, exceptions and jobs when those types are selected ([details](analysis.md)).
+- **summary.analysis_scoped_to_filters** â€” true when content filters narrowed which rows fed the listing; analysis itself always covers the whole selected window.
+- **summary.scan** â€” `{ "limit", "truncated" }`: the bounded newest-first scan ceiling and whether it was hit. When `truncated` is true, results may be incomplete.
+- **violations** â€” `--fail-on` checks that matched (empty array otherwise); mirrors exit code 3.
 
 For `--show=<uuid>` the envelope contains a single `"entry"` object instead of `"items"`.
 
@@ -57,9 +61,9 @@ Each item is one normalized entry. Common keys come first-class:
 | Key | Always present |
 | --- | --- |
 | `uuid` | yes |
-| `type` | yes — the Telescope entry type string |
+| `type` | yes â€” the Telescope entry type string |
 | `batch_id` | nullable |
-| `created_at` | nullable — UTC ISO 8601 |
+| `created_at` | nullable â€” UTC ISO 8601 |
 
 Type-specific fields are merged at the same level. Anything ending in `_ms` is milliseconds.
 
@@ -107,17 +111,17 @@ Type-specific fields are merged at the same level. Anything ending in `_ms` is m
 
 Under default redaction the sensitive fields listed below are removed from items entirely (the keys are absent), not set to `null`.
 
-Nullable fields may be omitted values (`null`) rather than missing keys — consumers should tolerate both.
+Nullable fields may be omitted values (`null`) rather than missing keys â€” consumers should tolerate both.
 
 ## Sensitive values
 
-Fields such as `payload`, `headers`, `session`, `bindings`, `trace`, `context`, `data`, and `value` are **redacted by default**: they are removed from JSON entirely. Pass `--full` (or set `redact_sensitive: false` in config) to include them — only do this on machines where that data is safe to expose.
+Fields such as `payload`, `headers`, `session`, `bindings`, `trace`, `context`, `data`, and `value` are **redacted by default**: they are removed from JSON entirely. Pass `--full` (or set `redact_sensitive: false` in config) to include them â€” only do this on machines where that data is safe to expose.
 
 All string values are truncated at `value_limit` characters (default 1000) so a single huge payload can never blow up a consumer.
 
 ## NDJSON
 
-`--ndjson` emits one compact JSON item per line — ideal for streaming into `jq`:
+`--ndjson` emits one compact JSON item per line â€” ideal for streaming into `jq`:
 
 ```bash
 php artisan telescope:inspect --queries --last=1h --ndjson | jq 'select(.duration_ms > 500)'

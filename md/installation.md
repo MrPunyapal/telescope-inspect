@@ -1,3 +1,7 @@
+---
+order: 2
+---
+
 # Installation
 
 This package reads data recorded by [Laravel Telescope](https://laravel.com/docs/telescope), so install it in a project that already uses Telescope.

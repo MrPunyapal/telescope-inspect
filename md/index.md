@@ -1,3 +1,9 @@
+---
+order: 1
+title: Telescope Inspect
+description: Query Laravel Telescope data from the command line. It prints readable summaries for people and JSON for scripts, CI jobs, and other tools.
+---
+
 # Telescope Inspect
 
 Query Laravel Telescope data from the command line. It prints readable summaries for people and JSON for scripts, CI jobs, and other tools.

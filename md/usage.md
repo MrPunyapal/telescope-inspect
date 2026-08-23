@@ -1,3 +1,7 @@
+---
+order: 3
+---
+
 # Usage
 
 Every inspection follows the same shape:
