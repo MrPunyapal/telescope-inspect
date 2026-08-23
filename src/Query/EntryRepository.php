@@ -234,7 +234,7 @@ final class EntryRepository
 
     /**
      * Whether the newest-first scan hit its ceiling without exhausting the
-     * window — i.e. results may be incomplete.
+     * window, i.e. results may be incomplete.
      */
     public function lastScanWasTruncated(): bool
     {

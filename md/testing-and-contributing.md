@@ -14,7 +14,7 @@ composer lint        # Pint (check only)
 composer check       # everything above + composer validate
 ```
 
-The suite runs against Orchestra Testbench with an in-memory SQLite database. Tests insert **realistic Telescope rows** directly into Telescope's own migrations â€” no mocking of the storage layer â€” so the actual SQL, normalization and analysis pipelines are exercised.
+The suite runs against Orchestra Testbench with an in-memory SQLite database. Tests insert **realistic Telescope rows** directly into Telescope's own migrations, with no mocking of the storage layer, so the actual SQL, normalization and analysis pipelines are exercised.
 
 ## Building the documentation site
 
@@ -30,7 +30,7 @@ Output lands in `docs/`.
 
 1. Fork and clone the repository.
 2. `composer install`.
-3. Add tests for any behavior change â€” bug fixes need a regression test.
+3. Add tests for any behavior change; bug fixes need a regression test.
 4. Keep the JSON contract stable: if you add fields, document them in `md/json-output.md` and keep `schema_version` unchanged unless it's a breaking change.
 5. Run `composer check` before opening a pull request.
 6. Pull requests should target `main` and keep a focused scope.

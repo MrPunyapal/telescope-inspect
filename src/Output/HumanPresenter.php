@@ -140,7 +140,7 @@ final class HumanPresenter
 
         if ($issues->isNotEmpty()) {
             $summary = $issues->map(fn (array $counts, string $label): string => "{$counts[0]} {$label}")->implode(' and ');
-            $this->output->text("Tip: {$summary} recorded — try --exceptions --jobs --last=24h.");
+            $this->output->text("Tip: {$summary} recorded; try --exceptions --jobs --last=24h.");
         }
     }
 
@@ -158,7 +158,7 @@ final class HumanPresenter
 
         $type = EntryType::tryFrom((string) ($entry['type'] ?? ''));
 
-        $this->output->section('Telescope Entry'.($type !== null ? ' — '.$type->label() : ''));
+        $this->output->section('Telescope Entry'.($type !== null ? ': '.$type->label() : ''));
 
         $rows = collect($this->flattenForDisplay($entry))
             ->map(fn ($value, $key): array => [$key, (string) $value])

@@ -66,7 +66,7 @@ class InspectCommand extends Command
                             {--json : Output the machine-readable JSON contract}
                             {--ndjson : Output newline-delimited JSON items (requires a type flag or --show)}
                             {--human : Force human-readable output even when an AI agent is detected}
-                            {--full : Include sensitive values Telescope recorded — output may contain secrets}
+                            {--full : Include sensitive values Telescope recorded (output may contain secrets)}
                             {--fail-on= : Exit with code 3 when issues exist: exceptions,failed-jobs,slow-requests,slow-queries}';
 
     protected $description = 'Inspect and summarize Laravel Telescope data from the command line';

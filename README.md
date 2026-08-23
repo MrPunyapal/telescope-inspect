@@ -14,10 +14,10 @@ php artisan telescope:inspect --requests --last=1h
 ```
 
 ```text
-Requests Â· showing 50 of 184 Â· last 1h
+Requests · showing 50 of 184 · last 1h
 --------------------------------------
 
- Avg 1.12s Â· P95 3.80s Â· Statuses: 200Ã—171   500Ã—9   302Ã—4
+ Avg 1.12s · P95 3.80s · Statuses: 200×171   500×9   302×4
 
  Method  URI                       Reqs   Avg     P95     Avg queries
  GET     /orders                   42     842ms   1.70s   38
@@ -57,12 +57,12 @@ All 18 Telescope entry types are supported: requests, queries, exceptions, jobs,
 
 | Filter | Example |
 | --- | --- |
-| Time window | `--last=15m` Â· `--from=2026-08-01` Â· `--to="2026-08-02 14:30"` |
+| Time window | `--last=15m` · `--from=2026-08-01` · `--to="2026-08-02 14:30"` |
 | Limit | `--limit=100` |
 | Duration | `--min-duration=250` (milliseconds) |
 | Route | `--route="*orders*"` or `--route=OrderController@store` |
-| HTTP | `--method=GET,POST` Â· `--status=500,404` |
-| Queue | `--failed` Â· `--connection=redis` |
+| HTTP | `--method=GET,POST` · `--status=500,404` |
+| Queue | `--failed` · `--connection=redis` |
 | Free text | `--search=checkout` (matches tags or content) |
 
 Filters combine. For example:
@@ -79,12 +79,21 @@ php artisan telescope:inspect --show=<uuid>
 
 Prints every normalized field for one entry. Sensitive fields need `--full`.
 
-### Replaying and watching
+### Batch replay
+
+Every entry Telescope records during one request or job shares a batch id. Replay the whole lifecycle in recording order:
 
 ```bash
-php artisan telescope:inspect --batch=<batch-id>    # full lifecycle of one request
-php artisan telescope:inspect --exceptions --watch  # tail new exceptions live
+php artisan telescope:inspect --batch=<batch-id>
 ```
+
+### Watching live traffic
+
+```bash
+php artisan telescope:inspect --exceptions --watch
+```
+
+Prints new entries as they arrive. Add `--ndjson` for machine-consumable lines.
 
 ### Analysis
 
@@ -111,7 +120,7 @@ php artisan telescope:inspect --requests --queries --exceptions --jobs --last=1h
     "filters": { "types": ["request"], "last": "1h", "limit": 50 },
     "summary": {
         "total_entries_in_window": 184,
-        "entries_by_type": { "request": 184 },
+        "entries_by_type": { "request": 42 },
         "analysis": {
             "request": {
                 "avg_duration_ms": 1120.5,
@@ -131,16 +140,6 @@ There is also `--ndjson` for one compact JSON object per line, which is convenie
 
 ```bash
 php artisan telescope:inspect --queries --last=1h --ndjson | jq 'select(.duration_ms > 500)'
-```
-
-### Monitored tags
-
-Telescope keeps entries that carry a monitored tag even when recording is paused. Manage them from the CLI:
-
-```bash
-php artisan telescope:monitor list
-php artisan telescope:monitor add --tag="App\Jobs\*"
-php artisan telescope:monitor remove --tag="App\Jobs\*"
 ```
 
 ### AI agents
@@ -195,16 +194,16 @@ See [docs/configuration](https://mrpunyapal.github.io/telescope-inspect/configur
 
 ```
 Telescope storage
-      â†“
+      ↓
 EntryRepository          SQL filtering, bounded scans
-      â†“
+      ↓
 ContentNormalizer        raw content arrays to stable normalized fields
-      â†“
+      ↓
 Analyzers                request, query, exception, job aggregation
-      â†“
+      ↓
 InspectionResult         typed result object
-      â†“
-HumanPresenter Â· JsonPresenter
+      ↓
+HumanPresenter · JsonPresenter
 ```
 
 The Artisan command is a thin wrapper around `TelescopeInspector::inspect(InspectFilters): InspectionResult`. If you want to build tooling on top (an MCP server, an IDE plugin), use that service instead of querying Telescope yourself.

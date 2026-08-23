@@ -38,8 +38,8 @@ return [
 
 ## Guidance
 
-- **redact_sensitive** â€” leave `true` everywhere except machines where dumping full payloads is acceptable. Prefer the runtime `--full` flag over a global off-switch.
-- **auto_json_for_agents** â€” keep `true` so agents that shell into the app get parseable JSON without special flags. Set it to `false` if you always want tables and rely on explicit `--json`.
-- **value_limit** â€” raise it if your team consumes JSON programmatically and wants complete SQL or messages; lower it if consumers are token-constrained (AI agents).
-- **scan_limit** â€” bounds both content-level filtering *and* per-type analysis aggregation (there is no separate analysis knob). Lower it on shared production machines; summaries remain representative because they always cover the most recent matching entries.
-- **slow_threshold_ms** â€” set it to what "slow" means for *your* app so CI gates read naturally.
+- **redact_sensitive**: leave `true` everywhere except machines where dumping full payloads is acceptable. Prefer the runtime `--full` flag over a global off-switch.
+- **auto_json_for_agents**: keep `true` so agents that shell into the app get parseable JSON without special flags. Set it to `false` if you always want tables and rely on explicit `--json`.
+- **value_limit**: raise it if your team consumes JSON programmatically and wants complete SQL or messages; lower it if consumers are token-constrained (AI agents).
+- **scan_limit**: bounds both content-level filtering *and* per-type analysis aggregation (there is no separate analysis knob). Lower it on shared production machines; summaries remain representative because they always cover the most recent matching entries.
+- **slow_threshold_ms**: set it to what "slow" means for *your* app so CI gates read naturally.

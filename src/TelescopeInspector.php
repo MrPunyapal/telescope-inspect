@@ -53,7 +53,7 @@ final class TelescopeInspector
             );
         }
 
-        // One bounded fetch, then partition by type — never one query per type.
+        // One bounded fetch, then partition by type; never one query per type.
         $entries = $filters->hasTypeSelection() ? $this->repository->get($filters) : [];
 
         $itemsByType = [];

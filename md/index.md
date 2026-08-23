@@ -15,10 +15,10 @@ php artisan telescope:inspect --requests --last=1h
 ```
 
 ```text
-Requests Â· showing 50 of 184 Â· last 1h
+Requests · showing 50 of 184 · last 1h
 --------------------------------------
 
- Avg 1.12s Â· P95 3.80s Â· Statuses: 200Ã—171   500Ã—9   302Ã—4
+ Avg 1.12s · P95 3.80s · Statuses: 200×171   500×9   302×4
 
  Method  URI                       Reqs   Avg     P95     Avg queries
  GET     /orders                   42     842ms   1.70s   38

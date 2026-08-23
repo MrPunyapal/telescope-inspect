@@ -144,7 +144,7 @@ final class QueryAnalyzer
     }
 
     /**
-     * Identical SQL executed many times within one request — the classic
+     * Identical SQL executed many times within one request: the classic
      * N+1 shape. Heuristic only; reported as "likely", never certain.
      *
      * Each offending SQL pattern is reported once, attributed to its worst

@@ -62,7 +62,7 @@ final class IssueChecks
 
     /**
      * A request counts as slow when its route-level P95 duration reaches the
-     * threshold — outliers are exactly what CI should catch.
+     * threshold; outliers are exactly what CI should catch.
      *
      * @param  array<string, mixed>  $analysis
      */
