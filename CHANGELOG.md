@@ -5,9 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased](https://github.com/MrPunyapal/telescope-inspect/compare/v0.1.0...HEAD)
 
-## [0.1.0] - 2026-08-23
+## [v0.1.0](https://github.com/MrPunyapal/telescope-inspect/compare/0.1.0...v0.1.0) - 2026-08-23
+
+Initial release.
+
+- telescope:inspect command covering all 18 Telescope entry types
+- Filters: time windows, duration, route, method, status, connection, search
+- Analysis: slow routes with P95 and queries per request, repeated SQL patterns, likely N+1 detection, exception signatures, job failure tracking
+- Output: readable terminal tables, versioned JSON envelope (--json), NDJSON (--ndjson)
+- Privacy: sensitive fields redacted by default, --full to include
+- CI support: --fail-on checks with documented exit codes
+
+## [0.1.0](https://github.com/MrPunyapal/telescope-inspect/releases/tag/0.1.0) - 2026-08-23
 
 Initial release.
 
@@ -20,6 +31,3 @@ Initial release.
 - Machine-readable output: versioned JSON envelope (`--json`) and newline-delimited items (`--ndjson`), sensitive-value redaction with `--full` opt-in.
 - CI-oriented exit codes with `--fail-on=exceptions,failed-jobs,slow-requests,slow-queries`.
 - Publishable configuration for redaction, truncation, scan bounds and the slow threshold.
-
-[Unreleased]: https://github.com/MrPunyapal/telescope-inspect/compare/0.1.0...HEAD
-[0.1.0]: https://github.com/MrPunyapal/telescope-inspect/releases/tag/0.1.0
