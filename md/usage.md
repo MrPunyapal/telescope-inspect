@@ -86,6 +86,14 @@ php artisan telescope:inspect --show=<uuid>
 
 Prints every normalized field for that UUID. Sensitive fields require `--full`.
 
+## Picking an entry interactively
+
+```bash
+php artisan telescope:inspect --queries --pick
+```
+
+After the listing renders, an arrow-key selector offers every listed entry with its time, type, summary and full `file:line`; confirming opens the same detail view as `--show` for the chosen UUID. Requires a type flag or `--batch=<id>`; cannot be combined with `--json`, `--ndjson`, or `--watch`. When no interactive terminal is available (CI, pipes) the picker says so and exits cleanly - the listing itself is never lost.
+
 ## Replaying a request or job
 
 Every entry Telescope records during one request or job shares a batch id. Replay the whole lifecycle in recording order:

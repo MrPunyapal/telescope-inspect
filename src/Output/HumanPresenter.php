@@ -551,6 +551,10 @@ final class HumanPresenter
 
     /**
      * Render "file:line" relative to the application base path when possible.
+     *
+     * Paths are truncated from the LEFT when they overflow: the identifying
+     * segment of a file path sits at its end, so a crammed column keeps
+     * "OrderController.php:41" rather than "/app/app/Http/Control…".
      */
     private function location(mixed $file, mixed $line, int $width = self::CELL_WIDTH): string
     {
@@ -560,9 +564,19 @@ final class HumanPresenter
 
         $base = base_path();
         $path = str_starts_with((string) $file, $base) ? substr((string) $file, strlen($base) + 1) : (string) $file;
-        $rendered = $line !== null ? $path.':'.$line : $path;
+        $rendered = str_replace('\\', '/', $line !== null ? $path.':'.$line : $path);
 
-        return $this->cell(str_replace('\\', '/', $rendered), $width);
+        if (mb_strlen($rendered) <= $width) {
+            return $rendered;
+        }
+
+        $basename = basename($rendered);
+
+        if (mb_strlen($basename) <= $width) {
+            return $basename;
+        }
+
+        return '…'.mb_substr($basename, -($width - 1));
     }
 
     /**

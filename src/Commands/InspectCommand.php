@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Schema;
 use Laravel\AgentDetector\AgentDetector;
 use Laravel\Telescope\Telescope;
 use MrPunyapal\TelescopeInspect\Analysis\IssueChecks;
+use MrPunyapal\TelescopeInspect\Entries\NormalizedEntry;
 use MrPunyapal\TelescopeInspect\Filters\InspectFilters;
 use MrPunyapal\TelescopeInspect\Filters\InvalidFilter;
 use MrPunyapal\TelescopeInspect\InspectionResult;
@@ -17,6 +18,8 @@ use MrPunyapal\TelescopeInspect\Output\JsonPresenter;
 use MrPunyapal\TelescopeInspect\Query\EntryRepository;
 use MrPunyapal\TelescopeInspect\TelescopeInspector;
 use Throwable;
+
+use function Laravel\Prompts\select;
 
 /**
  * php artisan telescope:inspect
@@ -67,6 +70,7 @@ class InspectCommand extends Command
                             {--json : Output the machine-readable JSON contract}
                             {--ndjson : Output newline-delimited JSON items; requires a type flag, --batch=<id>, or --show=<uuid>}
                             {--human : Force human-readable output when an AI agent is detected (explicit --json/--ndjson still win)}
+                            {--pick : Interactively choose an entry from the listing and open its full detail (requires a type flag or --batch=<id>)}
                             {--full : Include sensitive values Telescope recorded (output may contain secrets)}
                             {--fail-on= : Exit with code 3 when issues exist: exceptions,failed-jobs,slow-requests,slow-queries}';
 
@@ -174,6 +178,20 @@ HELP;
             );
         }
 
+        if ($this->option('pick') && ! $filters->hasTypeSelection() && $filters->batchId === null) {
+            return $this->invalidUsage('--pick requires at least one type flag or --batch=<id>.');
+        }
+
+        if ($this->option('pick')) {
+            if ($machine) {
+                return $this->invalidUsage('--pick cannot be combined with --json or --ndjson.', machine: true);
+            }
+
+            if ($watchRequested) {
+                return $this->invalidUsage('--pick cannot be combined with --watch.');
+            }
+        }
+
         if (! $this->telescopeStorageExists()) {
             $this->runtimeFailure('Telescope storage tables not found.', machine: $machine);
             $this->failHint($machine, 'Run `php artisan migrate` after installing Telescope: composer require laravel/telescope && php artisan telescope:install');
@@ -235,7 +253,13 @@ HELP;
             return $this->emitJson($result, $violations, $format->agentName);
         }
 
-        return $this->renderForHumans($result, $violations);
+        $exit = $this->renderForHumans($result, $violations);
+
+        if ($this->option('pick')) {
+            return $this->pickEntry($result, $inspector);
+        }
+
+        return $exit;
     }
 
     /**
@@ -286,10 +310,7 @@ HELP;
      */
     private function renderForHumans(InspectionResult $result, array $violations): int
     {
-        (new HumanPresenter(
-            output: $this->output,
-            sensitiveValuesOmitted: ! $result->filters->includeSensitiveValues,
-        ))->render($result);
+        $this->humanPresenter()->render($result);
 
         if ($violations === []) {
             return Command::SUCCESS;
@@ -306,6 +327,98 @@ HELP;
         $this->components->error('Issues found: '.implode(', ', $violations).$threshold.". Inspect with: {$hints}");
 
         return self::EXIT_ISSUES_FOUND;
+    }
+
+    /**
+     * Interactive entry picker (human output only, --pick).
+     *
+     * Renders a Prompts select over the entries that were just listed and
+     * opens the full --show style detail for the chosen one. Falls back to
+     * a no-op when no terminal is attached: Prompts returns null for
+     * select() without an interactive stream.
+     */
+    private function pickEntry(InspectionResult $result, TelescopeInspector $inspector): int
+    {
+        /** @var array<string, string> $options uuid => label */
+        $options = [];
+        $timezone = config('app.timezone');
+
+        foreach ($result->itemsByType as $typeValue => $entries) {
+            foreach ($entries as $entry) {
+                $time = $entry->createdAt?->timezone($timezone)->format('H:i:s') ?? '--:--:--';
+                $headline = mb_strimwidth((string) $entry->type->headline($entry->fields), 0, 52, '…');
+                $location = $this->entryLocationTail($entry);
+
+                $options[$entry->uuid] = sprintf('%s · %s · %s · %s', $time, $entry->type->label(), $headline, $location);
+            }
+        }
+
+        if ($options === []) {
+            $this->components->info('Nothing listed to pick from.');
+
+            return Command::SUCCESS;
+        }
+
+        try {
+            $uuid = select(
+                label: 'Inspect which entry?',
+                options: $options,
+                scroll: 12,
+                hint: 'Enter opens the full detail; Ctrl+C cancels.',
+            );
+        } catch (Throwable) {
+            // Prompts falls back to Symfony's QuestionHelper when no
+            // interactive terminal is available (CI, pipes, Windows without
+            // a console), which aborts on closed stdin. Treat every prompt
+            // failure as a cancellation: the listing above stays useful.
+            $this->components->warn('Interactive picker unavailable here; use --show=<uuid> instead.');
+
+            return Command::SUCCESS;
+        }
+
+        if (! is_string($uuid) || ! isset($options[$uuid])) {
+            return Command::SUCCESS;
+        }
+
+        $picked = $inspector->inspect(InspectFilters::fromOptions([
+            'show' => $uuid,
+            'full' => (bool) $this->option('full'),
+        ]));
+
+        if ($picked->singleEntry === null) {
+            return $this->runtimeFailure("No Telescope entry found for UUID [{$uuid}].", machine: false);
+        }
+
+        $this->humanPresenter()->render($picked);
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Full "file:line" tail for picker labels; labels are not width-capped
+     * because Prompts scrolls them horizontally.
+     */
+    private function entryLocationTail(NormalizedEntry $entry): string
+    {
+        $file = $entry->field('file');
+
+        if ($file === null) {
+            return '-';
+        }
+
+        $base = base_path();
+        $path = str_starts_with((string) $file, $base) ? substr((string) $file, strlen($base) + 1) : (string) $file;
+        $line = $entry->field('line');
+
+        return str_replace('\\', '/', $line !== null ? $path.':'.$line : $path);
+    }
+
+    private function humanPresenter(): HumanPresenter
+    {
+        return new HumanPresenter(
+            output: $this->output,
+            sensitiveValuesOmitted: ! $this->option('full'),
+        );
     }
 
     /**
