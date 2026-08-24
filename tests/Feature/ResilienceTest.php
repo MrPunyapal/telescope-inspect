@@ -65,12 +65,15 @@ it('survives corrupt content and garbage timestamps and unknown types', function
             'content' => '{"sql": "select 2", "time": "6.00"}',
             'created_at' => 'not-a-timestamp',
         ]] : []),
+        // Unknown to EntryType. Telescope caps this column at
+        // string('type', 20), so the stand-in must stay short: strict-mode
+        // MySQL rejects oversized values (SQLSTATE 22001) where SQLite does not.
         [
             'uuid' => entryUuid(),
             'batch_id' => entryUuid(),
             'family_hash' => null,
             'should_display_on_index' => true,
-            'type' => 'brand_new_future_type',
+            'type' => 'mystery_type',
             'content' => '{"whatever": true}',
             'created_at' => now()->format('Y-m-d H:i:s'),
         ],
