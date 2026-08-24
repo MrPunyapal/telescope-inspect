@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased](https://github.com/MrPunyapal/telescope-inspect/commits/main)
 
+## 0.2.0 - 2026-08-24
+
 Hardening release: correctness, privacy, and contract fixes from a full external audit. No new features; several behavior changes are intentional and documented below.
 
 ### Changed
@@ -68,4 +70,5 @@ Initial release.
 - AI agent detection via `laravel/agent-detector`: when a command runs under an agent, output switches to JSON automatically (disable with `auto_json_for_agents`, override with `--human`). The envelope gains an `agent` key naming the detected agent.
 - Laravel Boost skill (`resources/boost/skills/telescope-inspect`) so installed agents know how to drive the commands and read the JSON contract.
 
-[Unreleased]: https://github.com/MrPunyapal/telescope-inspect/commits/main
+[Unreleased]: https://github.com/MrPunyapal/telescope-inspect/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/MrPunyapal/telescope-inspect/compare/v0.1.1...v0.2.0
