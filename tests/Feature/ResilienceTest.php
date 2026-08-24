@@ -51,7 +51,12 @@ it('survives corrupt content and garbage timestamps and unknown types', function
             'content' => '{"sql": "select 1", "time": "5.00"', // truncated JSON
             'created_at' => now()->format('Y-m-d H:i:s'),
         ],
-        [
+        // A literal garbage string can only sit in a DATETIME column when a
+        // non-strict writer put it there: strict-mode MySQL rejects the row
+        // at insert time (SQLSTATE 22007). SQLite stores any string, so this
+        // row stays SQLite-only; the SQLite CI matrix exercises the
+        // unparseable-timestamp fallback in EntryRepository::hydrate().
+        ...(DB::connection()->getDriverName() === 'sqlite' ? [[
             'uuid' => entryUuid(),
             'batch_id' => entryUuid(),
             'family_hash' => null,
@@ -59,7 +64,7 @@ it('survives corrupt content and garbage timestamps and unknown types', function
             'type' => 'query',
             'content' => '{"sql": "select 2", "time": "6.00"}',
             'created_at' => 'not-a-timestamp',
-        ],
+        ]] : []),
         [
             'uuid' => entryUuid(),
             'batch_id' => entryUuid(),
