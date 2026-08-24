@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased](https://github.com/MrPunyapal/telescope-inspect/commits/main)
 
+### Fixed
+
+- CI: restored matrix job creation (GitHub Actions silently skipped the job when `include:` introduced a new axis value; PHP 8.5 moved into the base matrix) and unblocked Composer's security-advisory resolution gate inside matrix installs so Laravel 11 cells can resolve again.
+- Tests: console mocking disabled and PendingCommand usage replaced with real-output assertions, because Testbench's mocked OutputStyle starves `Artisan::output()` on older framework stacks, which had left the Laravel 11 lowest-dependency cells failing invisibly.
+
 ## 0.2.0 - 2026-08-24
 
 Hardening release: correctness, privacy, and contract fixes from a full external audit. No new features; several behavior changes are intentional and documented below.

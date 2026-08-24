@@ -9,6 +9,13 @@ use Orchestra\Testbench\TestCase as Orchestra;
 
 abstract class TestCase extends Orchestra
 {
+    /**
+     * Real buffered output for every Artisan::call: the JSON contract tests
+     * parse stdout byte-for-byte, so Testbench's mocked console output
+     * (which drops writes on some framework stacks) must stay off.
+     */
+    public $mockConsoleOutput = false;
+
     protected function getPackageProviders($app): array
     {
         return [

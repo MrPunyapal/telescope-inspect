@@ -9,8 +9,3 @@ parameters:
     excludePaths:
         - tests/Fixtures
     treatPhpDocTypesAsCertain: false
-    ignoreErrors:
-        # Pest's test() helper proxies to the test case; PHPStan cannot see through it.
-        -
-            message: '#Call to an undefined method Pest\\PendingCalls\\TestCall\|Pest\\Support\\HigherOrderTapProxy::artisan\(\)#'
-            path: tests/Pest.php

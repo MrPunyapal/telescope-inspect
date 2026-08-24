@@ -3,8 +3,8 @@
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Illuminate\Testing\PendingCommand;
 use MrPunyapal\TelescopeInspect\Tests\Fixtures\EntryFactory;
+use MrPunyapal\TelescopeInspect\Tests\Fixtures\PendingInspect;
 use MrPunyapal\TelescopeInspect\Tests\TestCase;
 
 /*
@@ -39,24 +39,14 @@ function telescopeCount(string $table): int
 /**
  * Run the inspect command with the given options and capture its result.
  *
+ * Executes against real buffered stdout (console mocking is disabled in
+ * TestCase) so expectations always see genuine output on every stack.
+ *
  * @param  array<string, bool|int|string|null>  $options
  */
-function inspect(array $options = []): PendingCommand
+function inspect(array $options = []): PendingInspect
 {
-    $arguments = [];
-
-    foreach ($options as $key => $value) {
-        if ($value === false || $value === null) {
-            continue;
-        }
-
-        $arguments['--'.$key] = $value;
-    }
-
-    /** @var PendingCommand $pending */
-    $pending = test()->artisan('telescope:inspect', $arguments);
-
-    return $pending;
+    return new PendingInspect($options);
 }
 
 /**
