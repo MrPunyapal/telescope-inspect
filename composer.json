@@ -31,7 +31,7 @@
     "require-dev": {
         "larastan/larastan": "^3.0",
         "laravel/pint": "^1.13",
-        "mrpunyapal/docsmith": "^0.3.0",
+        "mrpunyapal/docsmith": "^0.5.1",
         "orchestra/testbench": "^9.0|^10.0|^11.0",
         "pestphp/pest": "^3.0"
     },
