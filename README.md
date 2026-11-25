@@ -194,7 +194,7 @@ See [docs/configuration](https://mrpunyapal.github.io/telescope-inspect/configur
 | Laravel | ^11.0 \| ^12.0 \| ^13.0 |
 | Laravel Telescope | ^5.0 |
 
-Composer resolves the intersection automatically: Laravel 12 needs Telescope 5.5+, Laravel 13 needs 5.18+. CI runs the full matrix on Linux and Windows (including lowest-bound installs and PHP 8.5) plus a MySQL integration job; everything else is SQLite-based. Only long-stable Telescope APIs are used (`Storage\EntryModel`, `Contracts\EntriesRepository`).
+Composer resolves the intersection automatically: Laravel 12 needs Telescope 5.5+, Laravel 13 needs 5.18+. CI runs the full matrix on Linux and Windows (including lowest-bound installs and PHP 8.5/8.6) plus a MySQL integration job; everything else is SQLite-based. Only long-stable Telescope APIs are used (`Storage\EntryModel`, `Contracts\EntriesRepository`).
 
 ## How it works
 
