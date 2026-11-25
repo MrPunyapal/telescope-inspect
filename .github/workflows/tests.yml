@@ -41,6 +41,10 @@ jobs:
         exclude:
           - php: 8.6
             laravel: '11.*'
+          - php: 8.6
+            laravel: '12.*'
+          - php: 8.3
+            laravel: '13.*'
           # PHP 8.5 entered GA after Laravel 11's support window.
           - php: 8.5
             laravel: '11.*'
@@ -58,6 +62,10 @@ jobs:
           extensions: dom, curl, libxml, mbstring, zip, fileinfo, sqlite, pdo_sqlite
           coverage: none
           tools: composer:v2
+
+      - name: Use Pest 5 for Laravel 13
+        if: matrix.laravel == '13.*'
+        run: composer require --dev "pestphp/pest:^5.0" --no-interaction --no-update
 
       - name: Install dependencies
         run: |
