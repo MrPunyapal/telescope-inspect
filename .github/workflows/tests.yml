@@ -68,12 +68,19 @@ jobs:
         run: composer require --dev "pestphp/pest:~5.0" --no-interaction --no-update
 
       - name: Install dependencies
+        shell: bash
         run: |
           # Composer's advisory blocker rejects every framework 11.x release
           # (unresolved PKSA advisories); the matrix exists to test our
           # constraints across versions, so unblock resolution here.
           composer config policy.advisories.block false --no-interaction || echo "policy config not supported"
-          composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
+          # Older Laravel releases do not initialize lazy commands with Symfony Console 7.4.
+          constraint="${{ matrix.laravel }}"
+          case "$constraint" in
+            "11.*") constraint=">=11.46.2 <12.0" ;;
+            "12.*") constraint=">=12.38.0 <13.0" ;;
+          esac
+          composer require "laravel/framework:$constraint" "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
           composer update --${{ matrix.stability }} --prefer-dist --no-interaction --no-progress
 
       - name: List installed versions
