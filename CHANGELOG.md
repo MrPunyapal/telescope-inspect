@@ -7,12 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased](https://github.com/MrPunyapal/telescope-inspect/commits/main)
 
+## 0.3.0 - 2026-11-25
+
 ### Added
 
 - `--pick`: after a human listing renders, an interactive Prompts selector offers every listed entry (time, type, summary, full file:line) and opens the full detail view for the chosen one; degrades to a clean no-op without an interactive terminal. Entry locations in human tables now truncate from the left, keeping the identifying file name and line instead of the path prefix.
 
 ### Fixed
 
+- Verified PHP 8.6 compatibility on Laravel 13.
 - CI: restored matrix job creation (GitHub Actions silently skipped the job when `include:` introduced a new axis value; PHP 8.5 moved into the base matrix) and unblocked Composer's security-advisory resolution gate inside matrix installs so Laravel 11 cells can resolve again.
 - Tests: console mocking disabled and PendingCommand usage replaced with real-output assertions, because Testbench's mocked OutputStyle starves `Artisan::output()` on older framework stacks, which had left the Laravel 11 lowest-dependency cells failing invisibly.
 
